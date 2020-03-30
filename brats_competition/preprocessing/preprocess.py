@@ -5,7 +5,7 @@ import glob
 import yaml
 import tqdm
 import shutil
-from brain_tumor_segmentation.definitions import PREPROCESSING_CONFIG_PATH
+from brats_competition.definitions import PREPROCESSING_CONFIG_PATH
 
 CHANNELS = ["flair", "t1", "t1ce", "t2"]
 SEGMENTATION = "seg"
