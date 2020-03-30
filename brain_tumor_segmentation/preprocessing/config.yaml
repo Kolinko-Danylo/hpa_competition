@@ -1,0 +1,5 @@
+train_input_path: C:\Users\andrii.prysiazhnyk\Documents\ucu\ml_data\MICCAI_BraTS_2019_Data_Training
+preprocessed_path: C:\Users\andrii.prysiazhnyk\Documents\ucu\ml_data\preprocessed_brats
+
+background_threshold: 0.02
+validation_size: 0.15
