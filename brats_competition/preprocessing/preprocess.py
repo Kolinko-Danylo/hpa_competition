@@ -86,7 +86,7 @@ def fill_2d_data_folders(sources, destination, threshold=None):
         x, y = read_instance(source)
 
         for i in range(y.shape[-1]):
-            x_slice, y_slice = x[:, :, :, i], y[:, :, i]
+            x_slice, y_slice = np.transpose(x[:, :, :, i], (1, 2, 0)), y[:, :, i]
 
             if threshold is None or (y_slice != 0).mean() > threshold:
                 _save_slice(x_slice, y_slice, destination, counter)
