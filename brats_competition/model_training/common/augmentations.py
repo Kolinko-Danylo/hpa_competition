@@ -34,7 +34,8 @@ output_format = {
 normalization = {
     "none": lambda array: array,
     "default": lambda array: albu.Normalize(
-        mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]  # TODO: add means/stds
+        mean=[69.93894845, 95.63922359, 106.96826772, 109.37320937],
+        std=[565.15118794, 524.84993571, 541.58770239, 616.08134931]
     )(image=array)["image"],
     "binary": lambda array: np.array(array > 0, np.float32)
 }
@@ -42,8 +43,8 @@ normalization = {
 denormalization = {
     "none": lambda array: array,
     "default": lambda array: UnNormalize(
-        mean=[0.485, 0.456, 0.406],
-        std=[0.229, 0.224, 0.225]
+        mean=[69.93894845, 95.63922359, 106.96826772, 109.37320937],
+        std=[565.15118794, 524.84993571, 541.58770239, 616.08134931]
     )(array)
 }
 

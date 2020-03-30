@@ -1,0 +1,59 @@
+---
+project: brats_challenge
+task: segmentation
+log_path: /home/ostap/logs/brats
+
+devices:
+  - 'cuda:0'
+  - 'cuda:1'
+  - 'cuda:2'
+
+train:
+  path: /datasets/extra_space/brats/preprocessed/train_2d
+  transform:
+    size: &SIZE 352
+    augmentation_scope: none
+    images_normalization: &IMAGES_NORMALIZATION default
+    images_output_format_type: &IMAGES_OUTPUT_FORMAT_TYPE float
+    masks_normalization: &MASKS_NORMALIZATION none
+    masks_output_format_type: &MASKS_FORMAT_TYPE long
+    size_transform: resize
+
+val:
+  path: /datasets/extra_space/brats/preprocessed/val_2d
+  masks: segmentation
+  transform:
+    size: *SIZE
+    augmentation_scope: none
+    images_normalization: *IMAGES_NORMALIZATION
+    images_output_format_type: *IMAGES_OUTPUT_FORMAT_TYPE
+    masks_normalization: *MASKS_NORMALIZATION
+    masks_output_format_type: *MASKS_FORMAT_TYPE
+    size_transform: resize
+
+model:
+  arch: unet_resnet
+  encoder_depth: 34
+  classes: 4
+  loss:
+    name: categorical_cross_entropy
+  metrics:
+    - dice
+
+num_epochs: 150
+batch_size: 30
+optimizer:
+  name: adam
+  lr: 0.0005
+  weight_decay: 0.000001
+
+scheduler:
+  name: plateau
+  mode: max
+  patience: 2
+  factor: 0.5
+  min_lr: 0.0000001
+
+monitor:
+  method: epochs
+  interval: 5

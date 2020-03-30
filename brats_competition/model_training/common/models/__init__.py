@@ -13,6 +13,6 @@ def get_network(model_config):
     del model_config['arch']
 
     if arch == 'unet_resnet':
-        return UNetResNet(**model_config)
+        return UNetResNet(model_config['encoder_depth'], model_config['classes'])
     else:
         raise ValueError(f'Model architecture [{arch}] not recognized.')

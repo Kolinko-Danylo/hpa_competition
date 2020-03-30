@@ -2,6 +2,8 @@ import os
 import numpy as np
 import torch
 
+__all__ = ['Brats2dDataset']
+
 
 class Brats2dDataset(torch.utils.data.Dataset):
     def __init__(self, path, transform=None):
@@ -22,4 +24,5 @@ class Brats2dDataset(torch.utils.data.Dataset):
         if self.transform is None:
             return torch.from_numpy(x.astype(np.float32)).permute(2, 0, 1), torch.from_numpy(y).long()
         else:
-            return self.transform(x, y)
+            x, y = self.transform(x, y)
+            return x.permute(2, 0, 1), y.squeeze()

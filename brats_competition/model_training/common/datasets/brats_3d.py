@@ -4,6 +4,8 @@ import nibabel as nib
 import torch
 from brats_competition.preprocessing.preprocess import read_instance
 
+__all__ = ['Brats3dDataset']
+
 
 class Brats3dDataset(torch.utils.data.Dataset):
     def __init__(self, path, transform=None):
