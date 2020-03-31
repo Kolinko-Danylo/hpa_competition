@@ -23,4 +23,5 @@ class Brats3dDataset(torch.utils.data.Dataset):
         if self.transform is None:
             return torch.from_numpy(x.astype(np.float32)), torch.from_numpy(y).long()
         else:
-            return self.transform(x.permute(1, 2, 3, 0), y)
+            x, y = self.transform(x.permute(1, 2, 3, 0), y)
+            return x.permute(3, 0, 1, 2), y.squeeze()
