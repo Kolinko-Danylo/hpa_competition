@@ -55,7 +55,7 @@ class Trainer:
             {
                 'model': self.model_adapter.state_dict(),
                 'optimizer': self.optimizer.state_dict(),
-                'loss': self.config['model']['loss']['name'],
+                'loss': self.config['model']['loss'],
                 'scheduler': self.scheduler.state_dict()
             },
             os.path.join(self.log_path, '{}.h5'.format(file_prefix)))

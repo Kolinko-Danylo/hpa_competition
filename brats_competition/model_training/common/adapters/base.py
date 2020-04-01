@@ -15,6 +15,7 @@ class ModelAdapter:
         self.device = config['devices'][0]
 
         self.log_path = log_path
+        self.get_loss_function(config['model']['loss'])
         self.criterion = get_loss(config)
         metrics_names = config['model']['metrics']
         self.metrics = OrderedDict([
@@ -34,6 +35,12 @@ class ModelAdapter:
             self.model,
             device_ids=config['devices']
         )
+
+    def get_loss_function(self, losses_config):
+        if isinstance(losses_config, dict):
+            self.criterion = {losses_config['name']: (get_loss(losses_config), 1.0)}
+        elif isinstance(losses_config, list):
+            self.criterion = {x['name']: (get_loss(x), x['weight']) for x in losses_config}
 
     def set_epoch(self, epoch):
         assert epoch > 0
@@ -64,7 +71,10 @@ class ModelAdapter:
     def get_loss(self, y_pred, data):
         """Calculate loss given models output and targets"""
         y_true = data[1].to(self.device)
-        return self.criterion(y_pred, y_true)
+        loss = 0
+        for criterion, weight in self.criterion.values():
+            loss += weight * criterion(y_pred, y_true)
+        return loss
 
     def make_tensorboard_grid(self, batch_sample):
         """Make grid of model inputs and outputs"""
