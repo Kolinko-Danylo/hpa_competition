@@ -35,8 +35,7 @@ class IoULoss(nn.Module):
         return 1 - iou_loss.mean()
 
 
-def get_loss(config):
-    loss_config = config['model']['loss']
+def get_loss(loss_config):
     loss_name = loss_config['name']
     if loss_name == 'categorical_cross_entropy':
         return nn.CrossEntropyLoss()
