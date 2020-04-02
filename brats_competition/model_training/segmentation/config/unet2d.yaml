@@ -4,26 +4,25 @@ task: segmentation
 log_path: /home/ostap/logs/brats
 
 devices:
-  - 'cuda:0'
   - 'cuda:1'
   - 'cuda:2'
 
 train:
   path: /datasets/extra_space/brats/preprocessed/train_2d
   transform:
-    size: &SIZE 352
+    size: &SIZE 192
     augmentation_scope: none
     images_normalization: &IMAGES_NORMALIZATION default
     images_output_format_type: &IMAGES_OUTPUT_FORMAT_TYPE float
     masks_normalization: &MASKS_NORMALIZATION none
     masks_output_format_type: &MASKS_FORMAT_TYPE long
-    size_transform: resize
+    size_transform: crop_or_resize
 
 val:
   path: /datasets/extra_space/brats/preprocessed/val_2d
   masks: segmentation
   transform:
-    size: *SIZE
+    size: 256
     augmentation_scope: none
     images_normalization: *IMAGES_NORMALIZATION
     images_output_format_type: *IMAGES_OUTPUT_FORMAT_TYPE
@@ -36,7 +35,11 @@ model:
   encoder_depth: 34
   classes: 4
   loss:
-    name: categorical_cross_entropy
+    - name: mean_iou
+      weight: 0.5
+    - name: categorical_cross_entropy
+      class_weights: [0.00398384, 0.37205847, 0.16033528, 0.46362242]
+      weight: 0.5
   metrics:
     - dice
 

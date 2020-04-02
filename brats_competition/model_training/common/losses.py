@@ -35,10 +35,12 @@ class IoULoss(nn.Module):
         return 1 - iou_loss.mean()
 
 
-def get_loss(loss_config):
+def get_loss(loss_config, device):
     loss_name = loss_config['name']
     if loss_name == 'categorical_cross_entropy':
-        return nn.CrossEntropyLoss()
+        class_weights = loss_config.get("class_weights", None)
+        class_weights = torch.FloatTensor(class_weights).to(device)
+        return nn.CrossEntropyLoss(class_weights) if class_weights is None else nn.CrossEntropyLoss()
     elif loss_name == 'mean_iou':
         return IoULoss()
     else:
