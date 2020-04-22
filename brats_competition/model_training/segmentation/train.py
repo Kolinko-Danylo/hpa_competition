@@ -14,7 +14,7 @@ torch.manual_seed(42)
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 
-with open(os.path.join(os.path.dirname(__file__), 'config', 'unet2d.yaml')) as config_file:
+with open(os.path.join(os.path.dirname(__file__), 'config', 'deeplab.yaml')) as config_file:
     config = yaml.full_load(config_file)
 
 train_transform = get_transforms(config['train']['transform'])
