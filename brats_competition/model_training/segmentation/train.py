@@ -2,13 +2,15 @@ import yaml
 import torch
 import numpy as np
 import os
+import random
 
 from brats_competition.model_training.common.trainer import Trainer
 from brats_competition.model_training.common.datasets import Brats2dDataset
 from brats_competition.model_training.common.augmentations import get_transforms
 
-np.random.seed(0)
-torch.manual_seed(0)
+random.seed(42)
+np.random.seed(42)
+torch.manual_seed(42)
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 

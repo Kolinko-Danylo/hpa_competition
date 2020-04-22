@@ -36,9 +36,9 @@ class Trainer:
 
             train_loss = self._run_epoch(epoch)
             val_loss, metrics, batch_sample = self._validate()
-            # self.scheduler.step(epoch=epoch)
-            self.scheduler.step(metrics[self.model_adapter.main_metric] if self.model_adapter.main_metric != 'loss'
-                                else val_loss)
+            self.scheduler.step(epoch=epoch)
+            # self.scheduler.step(metrics[self.model_adapter.main_metric] if self.model_adapter.main_metric != 'loss'
+            #                     else val_loss)
             if self.monitor.should_save_checkpoint():
                 self.monitor.reset()
                 self._save_checkpoint(file_prefix=f'model_epoch_{epoch}')
@@ -47,8 +47,6 @@ class Trainer:
             logger.info(f"\nEpoch: {epoch}; train loss = {train_loss}; validation loss = {val_loss}")
 
             self.model_adapter.write_to_tensorboard(epoch, train_loss, val_loss, batch_sample)
-
-        self.model_adapter.on_training_end()
 
     def _save_checkpoint(self, file_prefix):
         torch.save(
