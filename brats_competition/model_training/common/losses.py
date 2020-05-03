@@ -21,6 +21,11 @@ class DiceLoss(nn.Module):
         Returns:
         float: soft-iou loss.
         """
+        # Convert 3d masks to 2d
+        if len(y_pred.shape) == 5:
+            y_pred = y_pred.view(*y_pred.shape[:-2], -1)
+            y_true = y_true.view(*y_true.shape[:-2], -1)
+
         num_classes = y_pred.shape[1]
 
         y_true_dummy = torch.eye(num_classes)[y_true.squeeze(1)]
@@ -53,6 +58,12 @@ class IoULoss(nn.Module):
         Returns:
         float: soft-iou loss.
         """
+
+        # Convert 3d masks to 2d
+        if len(y_pred.shape) == 5:
+            y_pred = y_pred.view(*y_pred.shape[:-2], -1)
+            y_true = y_true.view(*y_true.shape[:-2], -1)
+
         num_classes = y_pred.shape[1]
 
         y_true_dummy = torch.eye(num_classes)[y_true.squeeze(1)]
