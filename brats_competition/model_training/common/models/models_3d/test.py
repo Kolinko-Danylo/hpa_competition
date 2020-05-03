@@ -12,9 +12,9 @@ class TestModel(object):
         self.model = unet3d.UNet3d(in_channels=input_shape[0], out_channels=3).to(self.device)
         self.vae = vae.VAE(input_shape=vae_input_shape, out_channels=input_shape[0]).to(self.device)
 
-        self.encoded_tensor__ = None
+        self.__encoded_tensor = None
         self.target_module = self.get_target_layer(self.model, target_layer)
-        self.target_module.register_forward_hook(self.save_encoding__)
+        self.target_module.register_forward_hook(self.__save_encoding)
 
     @staticmethod
     def get_target_layer(model, target_layer):
@@ -30,12 +30,12 @@ class TestModel(object):
 
         return module
 
-    def save_encoding__(self, module, input_tensor, output_tensor):
-        self.encoded_tensor__ = output_tensor
+    def __save_encoding(self, module, input_tensor, output_tensor):
+        self.__encoded_tensor = output_tensor
 
     def forward(self, x):
         y = self.model(x)
-        x_recon, mu, sigma = self.vae(self.encoded_tensor__)
+        x_recon, mu, sigma = self.vae(self.__encoded_tensor)
         return y, x_recon, mu, sigma
 
 
