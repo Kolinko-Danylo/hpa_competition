@@ -1,6 +1,5 @@
 import os
 import numpy as np
-import nibabel as nib
 import torch
 from brats_competition.preprocessing.preprocess import read_instance
 
@@ -23,5 +22,5 @@ class Brats3dDataset(torch.utils.data.Dataset):
         if self.transform is None:
             return torch.from_numpy(x.astype(np.float32)), torch.from_numpy(y).long()
         else:
-            x, y = self.transform(x.permute(1, 2, 3, 0), y)
+            x, y = self.transform(x.transpose(1, 2, 3, 0), y)
             return x.permute(3, 0, 1, 2), y.squeeze()

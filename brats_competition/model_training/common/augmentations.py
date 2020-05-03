@@ -79,7 +79,8 @@ size_augmentations = {
     "crop_or_resize": lambda size: albu.OneOf([
         albu.RandomCrop(size, size),
         albu.Resize(height=size, width=size)
-    ], p=1)
+    ], p=1),
+    "crop": lambda size: albu.RandomCrop(size, size),
 }
 
 

@@ -37,9 +37,12 @@ class ModelAdapter:
 
     def get_loss_function(self, losses_config):
         if isinstance(losses_config, dict):
-            self.criterion = {losses_config['name']: (get_loss(losses_config, self.device), 1.0)}
+            self.criterion = {losses_config['name']: (get_loss(losses_config), 1.0)}
         elif isinstance(losses_config, list):
-            self.criterion = {x['name']: (get_loss(x, self.device), x['weight']) for x in losses_config}
+            self.criterion = {x['name']: (get_loss(x), x['weight']) for x in losses_config}
+
+        for loss_name in self.criterion:
+            self.criterion[loss_name][0].to(self.device)
 
     def set_epoch(self, epoch):
         assert epoch > 0

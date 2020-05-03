@@ -1,5 +1,6 @@
 from .unet import UNetResNet
 from .deeplab import DeepLabV3
+from .models_3d.unet3d import UNet3d
 
 
 def get_network(model_config):
@@ -17,5 +18,7 @@ def get_network(model_config):
         return UNetResNet(model_config['encoder_depth'], model_config['classes'])
     elif arch == "deeplab_v3":
         return DeepLabV3(model_config["encoder"], model_config["classes"])
+    elif arch == "unet_3d":
+        return UNet3d(model_config["input_channels"], model_config["classes"])
     else:
         raise ValueError(f'Model architecture [{arch}] not recognized.')

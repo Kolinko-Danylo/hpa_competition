@@ -1,37 +1,40 @@
 ---
 project: brats_challenge
-task: segmentation
+task: segmentation_3d
 log_path: /home/ostap/logs/brats
 
 devices:
+  - 'cuda:0'
+  - 'cuda:1'
   - 'cuda:2'
+  - 'cuda:3'
 
 train:
-  path: /datasets/extra_space/brats/preprocessed/train_2d
+  path: /datasets/extra_space/brats/preprocessed/train_3d
   transform:
-    size: &SIZE 192
+    size: &SIZE 128
     augmentation_scope: none
     images_normalization: &IMAGES_NORMALIZATION default
     images_output_format_type: &IMAGES_OUTPUT_FORMAT_TYPE float
     masks_normalization: &MASKS_NORMALIZATION none
     masks_output_format_type: &MASKS_FORMAT_TYPE long
-    size_transform: crop_or_resize
+    size_transform: crop
 
 val:
-  path: /datasets/extra_space/brats/preprocessed/val_2d
+  path: /datasets/extra_space/brats/preprocessed/val_3d
   masks: segmentation
   transform:
-    size: 256
+    size: 240
     augmentation_scope: none
     images_normalization: *IMAGES_NORMALIZATION
     images_output_format_type: *IMAGES_OUTPUT_FORMAT_TYPE
     masks_normalization: *MASKS_NORMALIZATION
     masks_output_format_type: *MASKS_FORMAT_TYPE
-    size_transform: resize
+    size_transform: none
 
 model:
-  arch: deeplab_v3
-  encoder: se_resnext50_32x4d
+  arch: unet_3d
+  input_channels: 4
   classes: 4
   loss:
     - name: mean_iou
@@ -43,11 +46,11 @@ model:
   metrics:
     - dice
 
-num_epochs: 150
-batch_size: 16
+num_epochs: 50
+batch_size: 4
 optimizer:
   name: adam
-  lr: [0.0002, 0.001]
+  lr: 0.001
   weight_decay: 0.000001
 
 #scheduler:
@@ -64,4 +67,4 @@ scheduler:
 
 monitor:
   method: epochs
-  interval: 100
+  interval: 5

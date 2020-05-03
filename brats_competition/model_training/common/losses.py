@@ -102,17 +102,17 @@ class FocalLoss(nn.Module):
             return focal_loss
 
 
-def get_loss(loss_config, device):
+def get_loss(loss_config):
     loss_name = loss_config['name']
     if loss_name == 'categorical_cross_entropy':
         class_weights = loss_config.get("class_weights", None)
         if class_weights is not None:
-            class_weights = torch.FloatTensor(class_weights).to(device)
+            class_weights = torch.FloatTensor(class_weights)
         return nn.CrossEntropyLoss(weight=class_weights)
     elif loss_name == 'focal_loss':
         class_weights = loss_config.get("class_weights", None)
         if class_weights is not None:
-            class_weights = torch.FloatTensor(class_weights).to(device)
+            class_weights = torch.FloatTensor(class_weights)
         return FocalLoss(gamma=loss_config['gamma'], weight=class_weights)
     elif loss_name == 'mean_iou':
         return IoULoss()
