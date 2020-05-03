@@ -22,7 +22,7 @@ class Segmentation3dModelAdapter(ModelAdapter):
         # select 2d slices with highest number of non-background pixels
         images_number = 16
         y_pred_2d, y_2d = y_pred.permute(0, 4, 1, 2, 3), y.permute(0, 3, 1, 2)
-        y_pred_2d, y_2d = y_pred_2d.view(-1, *y_pred_2d.shape[2:]), y_2d.view(-1, *y_2d.shape[2:])
+        y_pred_2d, y_2d = y_pred_2d.reshape(-1, *y_pred_2d.shape[2:]), y_2d.reshape(-1, *y_2d.shape[2:])
         scores = y_2d.sum(dim=(1, 2))
         _, indexes = scores.topk(images_number)
         y, y_pred = y_2d[indexes], y_pred_2d[indexes]
