@@ -1,7 +1,7 @@
 ---
 project: brats_challenge
 task: segmentation_3d
-log_path: /home/ostap/logs/brats
+log_path: /mnt/logs/brats
 
 devices:
   - 'cuda:0'
@@ -10,7 +10,7 @@ devices:
   - 'cuda:3'
 
 train:
-  path: /datasets/extra_space/brats/preprocessed/train_3d
+  path: /mnt/brats/preprocessed/train_3d
   transform:
     size: &SIZE 128
     augmentation_scope: none
@@ -21,7 +21,7 @@ train:
     size_transform: crop
 
 val:
-  path: /datasets/extra_space/brats/preprocessed/val_3d
+  path: /mnt/brats/preprocessed/val_3d
   masks: segmentation
   transform:
     size: 240
