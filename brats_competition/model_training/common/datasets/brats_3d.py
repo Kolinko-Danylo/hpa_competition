@@ -16,11 +16,12 @@ class Brats3dDataset(torch.utils.data.Dataset):
         return len(self.folder_paths)
 
     def __getitem__(self, i):
+        print(self.folder_paths[i])
         x, y = read_instance(self.folder_paths[i])
         y[y == 4] = 3
 
         if self.transform is None:
-            return torch.from_numpy(x.astype(np.float32)), torch.from_numpy(y).long()
+            return torch.from_numpy(x.astype(np.float32))[..., 2:-1], torch.from_numpy(y).long()[..., 2:-1]
         else:
             x, y = self.transform(x.transpose(1, 2, 3, 0), y)
-            return x.permute(3, 0, 1, 2), y.squeeze()
+            return x.permute(3, 0, 1, 2)[..., 2:-1], y.squeeze()[..., 2:-1]

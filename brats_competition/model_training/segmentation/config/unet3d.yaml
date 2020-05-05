@@ -37,7 +37,7 @@ model:
   input_channels: 4
   classes: 4
   loss:
-    - name: mean_iou
+    - name: mean_dice
       weight: 0.5
     - name: categorical_cross_entropy
       gamma: 1
@@ -46,7 +46,7 @@ model:
   metrics:
     - dice
 
-num_epochs: 50
+num_epochs: 100
 batch_size: 4
 optimizer:
   name: adam
@@ -62,9 +62,9 @@ optimizer:
 
 scheduler:
   name: step
-  gamma: 0.2
-  step_size: 10
+  gamma: 0.5
+  step_size: 20
 
 monitor:
   method: epochs
-  interval: 5
+  interval: 100
