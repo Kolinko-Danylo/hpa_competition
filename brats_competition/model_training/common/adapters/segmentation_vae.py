@@ -39,14 +39,15 @@ class SegmentationVAEAdapter(Segmentation3dModelAdapter):
             x_recon, mu, sigma = self.vae(self.__encoded_tensor)
             return y, x_recon, mu, sigma
         elif self.mode == 'val':
-            super(SegmentationVAEAdapter, self).forward(data)
+            return super(SegmentationVAEAdapter, self).forward(data)
 
     def get_loss(self, y_pred, data):
+        dice_loss, dice_weight = self.criterion['mean_dice']
+        y_true = data[1].to(self.device)
         if self.mode == 'train':
-            X, y_true = data[0].to(self.device), data[1].to(self.device)
+            X = data[0].to(self.device)
             y_pred, x_recon, mu, sigma = y_pred
 
-            dice_loss, dice_weight = self.criterion['mean_dice']
             mse_loss, mse_weight = self.criterion['mse']
             kl_loss, kl_weight = self.criterion['parametric_kl']
 
@@ -57,5 +58,6 @@ class SegmentationVAEAdapter(Segmentation3dModelAdapter):
                                          sigma,
                                          torch.prod(torch.tensor(X.shape[2:]))
                                          ))
+            return loss
         elif self.mode == 'val':
-            super(SegmentationVAEAdapter, self).get_loss(y_pred, data)
+            return dice_weight * dice_loss(y_pred, y_true)
