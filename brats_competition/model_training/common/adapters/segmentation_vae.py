@@ -8,7 +8,8 @@ __all__ = ['SegmentationVAEAdapter']
 class SegmentationVAEAdapter(Segmentation3dModelAdapter):
     def __init__(self, config, log_path):
         super(SegmentationVAEAdapter, self).__init__(config, log_path)
-        self.vae = VAE(input_shape=(256, 16, 16, 19), out_channels=4)
+        self.vae = VAE(input_shape=(256, 16, 16, 18), out_channels=4).to(self.device)
+        self.vae = torch.nn.DataParallel(self.vae, device_ids=config['devices'])
 
         self.__encoded_tensor = None
         self.target_module = self.get_target_layer(self.model.module, config['model']['target_layer'])

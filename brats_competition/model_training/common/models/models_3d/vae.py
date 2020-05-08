@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from collections import OrderedDict
 
-from .nnutils import ResBlock3d
+from brats_competition.model_training.common.models.models_3d.nnutils import ResBlock3d
 
 
 class VAE(nn.Module):
@@ -66,3 +66,10 @@ class VAE(nn.Module):
         out = self.conv11(out)
 
         return out, mu, sigma
+
+
+if __name__ == '__main__':
+    import torchsummary
+
+    model = VAE((256, 16, 16, 19), out_channels=4)
+    torchsummary.summary(model, input_size=(256, 16, 16, 19), device='cpu')
