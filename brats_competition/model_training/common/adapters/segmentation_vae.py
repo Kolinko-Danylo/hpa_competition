@@ -32,23 +32,26 @@ class SegmentationVAEAdapter(Segmentation3dModelAdapter):
         self.__encoded_tensor = output_tensor
 
     def forward(self, data):
-        X = data[0]
         if self.mode == 'train':
+            X = data[0]
             y = self.model(X)
             x_recon, mu, sigma = self.vae(self.__encoded_tensor)
             return y, x_recon, mu, sigma
         elif self.mode == 'val':
-            return self.model(X)
+            super(SegmentationVAEAdapter, self).forward(data)
 
     def get_loss(self, y_pred, data):
-        X, y_true = data[0].to(self.device), data[1].to(self.device)
-        y_pred, x_recon, mu, sigma = y_pred
+        if self.mode == 'train':
+            X, y_true = data[0].to(self.device), data[1].to(self.device)
+            y_pred, x_recon, mu, sigma = y_pred
 
-        dice_loss, dice_weight = self.criterion['mean_dice']
-        mse_loss, mse_weight = self.criterion['mse']
-        kl_loss, kl_weight = self.criterion['git ad']
+            dice_loss, dice_weight = self.criterion['mean_dice']
+            mse_loss, mse_weight = self.criterion['mse']
+            kl_loss, kl_weight = self.criterion['git ad']
 
-        loss = 0
-        loss += dice_weight * dice_loss(y_pred, y_true)
-        loss += mse_weight * mse_loss(x_recon, X)
-        loss += kl_weight * kl_loss((mu, sigma, torch.prod(X.shape[2:])))
+            loss = 0
+            loss += dice_weight * dice_loss(y_pred, y_true)
+            loss += mse_weight * mse_loss(x_recon, X)
+            loss += kl_weight * kl_loss((mu, sigma, torch.prod(X.shape[2:])))
+        elif self.mode == 'val':
+            super(SegmentationVAEAdapter, self).get_loss(y_pred, data)

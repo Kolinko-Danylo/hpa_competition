@@ -34,6 +34,7 @@ val:
 
 model:
   arch: unet_3d
+  target_layer: block13
   input_channels: 4
   classes: 4
   loss:
