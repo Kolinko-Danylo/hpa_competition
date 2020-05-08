@@ -102,6 +102,13 @@ class FocalLoss(nn.Module):
             return focal_loss
 
 
+class ParametricKLDivergence(nn.Module):
+    def forward(self, dist_params):
+        mu, sigma, numel = dist_params
+        batch_size = mu.size(0)
+        return torch.sum(mu ** 2 + sigma ** 2 - torch.log(sigma ** 2) - 1) / numel / batch_size
+
+
 def get_loss(loss_config):
     loss_name = loss_config['name']
     if loss_name == 'categorical_cross_entropy':
@@ -118,5 +125,9 @@ def get_loss(loss_config):
         return IoULoss()
     elif loss_name == 'mean_dice':
         return DiceLoss()
+    elif loss_name == 'mse':
+        return nn.MSELoss()
+    elif loss_name == 'parametric_kl':
+        return ParametricKLDivergence()
     else:
         raise ValueError(f"Loss [{loss_name}] not recognized.")

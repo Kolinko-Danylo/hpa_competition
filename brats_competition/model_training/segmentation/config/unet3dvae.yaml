@@ -1,0 +1,63 @@
+---
+project: brats_challenge
+task: segmentation_vae
+log_path: /mnt/logs/brats
+
+devices:
+  - 'cuda:0'
+  - 'cuda:1'
+  - 'cuda:2'
+  - 'cuda:3'
+
+train:
+  path: /mnt/brats/preprocessed/train_3d
+  transform:
+    size: &SIZE 128
+    augmentation_scope: none
+    images_normalization: &IMAGES_NORMALIZATION default
+    images_output_format_type: &IMAGES_OUTPUT_FORMAT_TYPE float
+    masks_normalization: &MASKS_NORMALIZATION none
+    masks_output_format_type: &MASKS_FORMAT_TYPE long
+    size_transform: crop
+
+val:
+  path: /mnt/brats/preprocessed/val_3d
+  masks: segmentation
+  transform:
+    size: 240
+    augmentation_scope: none
+    images_normalization: *IMAGES_NORMALIZATION
+    images_output_format_type: *IMAGES_OUTPUT_FORMAT_TYPE
+    masks_normalization: *MASKS_NORMALIZATION
+    masks_output_format_type: *MASKS_FORMAT_TYPE
+    size_transform: none
+
+model:
+  arch: unet_3d
+  input_channels: 4
+  classes: 4
+  loss:
+    - name: mean_dice
+      weight: 1.0
+    - name: mse
+      weight: 0.1
+    - name: parametric_kl
+      weight: 0.1
+  metrics:
+    - dice
+
+num_epochs: 150
+batch_size: 4
+optimizer:
+  name: adam
+  lr: 0.001
+  weight_decay: 0.000001
+
+scheduler:
+  name: step
+  gamma: 0.5
+  step_size: 20
+
+monitor:
+  method: epochs
+  interval: 150
