@@ -11,7 +11,7 @@ class SegmentationVAEAdapter(Segmentation3dModelAdapter):
         self.vae = VAE(input_shape=(256, 16, 16, 19), out_channels=4)
 
         self.__encoded_tensor = None
-        self.target_module = self.get_target_layer(self.model, config['model']['target_layer'])
+        self.target_module = self.get_target_layer(self.model.module, config['model']['target_layer'])
         self.target_module.register_forward_hook(self.__save_encoding)
 
     @staticmethod
