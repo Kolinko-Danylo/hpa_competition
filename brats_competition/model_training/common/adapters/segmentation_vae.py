@@ -48,7 +48,7 @@ class SegmentationVAEAdapter(Segmentation3dModelAdapter):
 
             dice_loss, dice_weight = self.criterion['mean_dice']
             mse_loss, mse_weight = self.criterion['mse']
-            kl_loss, kl_weight = self.criterion['git ad']
+            kl_loss, kl_weight = self.criterion['parametric_kl']
 
             loss = 0
             loss += dice_weight * dice_loss(y_pred, y_true)
