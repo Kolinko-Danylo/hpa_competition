@@ -53,6 +53,9 @@ class SegmentationVAEAdapter(Segmentation3dModelAdapter):
             loss = 0
             loss += dice_weight * dice_loss(y_pred, y_true)
             loss += mse_weight * mse_loss(x_recon, X)
-            loss += kl_weight * kl_loss((mu, sigma, torch.prod(X.shape[2:])))
+            loss += kl_weight * kl_loss((mu,
+                                         sigma,
+                                         torch.prod(torch.tensor(X.shape[2:]))
+                                         ))
         elif self.mode == 'val':
             super(SegmentationVAEAdapter, self).get_loss(y_pred, data)
