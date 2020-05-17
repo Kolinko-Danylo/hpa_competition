@@ -4,12 +4,11 @@ task: segmentation
 log_path: /home/ostap/logs/brats
 
 devices:
-  - 'cuda:0'
   - 'cuda:1'
   - 'cuda:2'
 
 train:
-  path: /datasets/extra_space/brats/preprocessed/train_2d
+  path: /datasets/extra_space/ostap/brats/preprocessed/train_2d
   transform:
     size: &SIZE 192
     augmentation_scope: none
@@ -20,7 +19,7 @@ train:
     size_transform: crop_or_resize
 
 val:
-  path: /datasets/extra_space/brats/preprocessed/val_2d
+  path: /datasets/extra_space/ostap/brats/preprocessed/val_2d
   masks: segmentation
   transform:
     size: 256
@@ -36,7 +35,7 @@ model:
   encoder_depth: 34
   classes: 4
   loss:
-    - name: mean_iou
+    - name: mean_dice
       weight: 0.5
     - name: categorical_cross_entropy
       gamma: 1
@@ -46,10 +45,10 @@ model:
     - dice
 
 num_epochs: 150
-batch_size: 96
+batch_size: 64
 optimizer:
   name: adam
-  lr: 0.001
+  lr: 0.0005
   weight_decay: 0.000001
 
 #scheduler:
@@ -62,7 +61,7 @@ optimizer:
 scheduler:
   name: step
   gamma: 0.2
-  step_size: 10
+  step_size: 6
 
 monitor:
   method: epochs

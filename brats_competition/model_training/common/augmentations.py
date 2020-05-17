@@ -25,6 +25,21 @@ class UnNormalize(object):
         return tensor_copy.transpose(1, 0)
 
 
+class Normalize(object):
+    def __init__(self, mean, std):
+        self.mean = np.array(mean)
+        self.std = np.array(std)
+
+    def __call__(self, array):
+        """
+        Args:
+            array (np.array): image of size (H, W, C) to be normalized.
+        Returns:
+            array: Normalized image.
+        """
+        return (array - self.mean) / self.std
+
+
 output_format = {
     "none": lambda array: array,
     "float": lambda array: torch.FloatTensor(array),
@@ -37,12 +52,20 @@ normalization = {
         mean=[69.93894845, 95.63922359, 106.96826772, 109.37320937],
         std=[565.15118794, 524.84993571, 541.58770239, 616.08134931]
     )(image=array)["image"],
+    "custom": lambda array: Normalize(
+        mean=[69.93894845, 95.63922359, 106.96826772, 109.37320937],
+        std=[565.15118794, 524.84993571, 541.58770239, 616.08134931]
+    )(array),
     "binary": lambda array: np.array(array > 0, np.float32)
 }
 
 denormalization = {
     "none": lambda array: array,
     "default": lambda array: UnNormalize(
+        mean=[69.93894845, 95.63922359, 106.96826772, 109.37320937],
+        std=[565.15118794, 524.84993571, 541.58770239, 616.08134931]
+    )(array),
+    "custom": lambda array: UnNormalize(
         mean=[69.93894845, 95.63922359, 106.96826772, 109.37320937],
         std=[565.15118794, 524.84993571, 541.58770239, 616.08134931]
     )(array)

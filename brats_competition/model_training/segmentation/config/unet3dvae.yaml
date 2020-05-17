@@ -14,7 +14,7 @@ train:
   transform:
     size: &SIZE 128
     augmentation_scope: none
-    images_normalization: &IMAGES_NORMALIZATION default
+    images_normalization: &IMAGES_NORMALIZATION custom
     images_output_format_type: &IMAGES_OUTPUT_FORMAT_TYPE float
     masks_normalization: &MASKS_NORMALIZATION none
     masks_output_format_type: &MASKS_FORMAT_TYPE long
@@ -33,8 +33,7 @@ val:
     size_transform: none
 
 model:
-  arch: unet_3d
-  target_layer: block13
+  arch: unet_3d_vae
   input_channels: 4
   classes: 4
   loss:
