@@ -72,4 +72,7 @@ class UNet3d(nn.Module):
 
         out = self.conv20(out)
 
-        return out
+        if self.training:
+            return enc256, out
+        else:
+            return out
