@@ -12,7 +12,7 @@ devices:
 train:
   path: /mnt/brats/preprocessed/train_3d
   transform:
-    size: &SIZE 128
+    size: &SIZE 112
     augmentation_scope: none
     images_normalization: &IMAGES_NORMALIZATION custom
     images_output_format_type: &IMAGES_OUTPUT_FORMAT_TYPE float
