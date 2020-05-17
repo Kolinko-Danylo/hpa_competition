@@ -40,10 +40,9 @@ model:
   loss:
     - name: mean_dice
       weight: 1.0
-    - name: mse
-      weight: 0.1
-    - name: parametric_kl
-      weight: 0.1
+  vae_loss:
+    mse_weight: 0.1
+    parametric_kl_weight: 0.1
   metrics:
     - dice
 
