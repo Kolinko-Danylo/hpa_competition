@@ -38,7 +38,10 @@ model:
   classes: 4
   loss:
     - name: mean_dice
-      weight: 1.0
+      weight: 0.4
+    - name: categorical_cross_entropy
+      class_weights: [0.00698384, 0.37205847, 0.16033528, 0.46362242]
+      weight: 0.6
   vae_loss:
     mse_weight: 0.1
     parametric_kl_weight: 0.1

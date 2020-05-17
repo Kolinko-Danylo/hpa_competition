@@ -36,11 +36,11 @@ model:
   classes: 4
   loss:
     - name: mean_dice
-      weight: 0.5
+      weight: 0.25
     - name: categorical_cross_entropy
       gamma: 1
-      class_weights: [0.00398384, 0.37205847, 0.16033528, 0.46362242]
-      weight: 0.5
+      class_weights: [0.00898384, 0.37205847, 0.16033528, 0.46362242]
+      weight: 0.75
   metrics:
     - dice
 
@@ -48,7 +48,7 @@ num_epochs: 150
 batch_size: 64
 optimizer:
   name: adam
-  lr: 0.0005
+  lr: 0.0003
   weight_decay: 0.000001
 
 #scheduler:
@@ -65,4 +65,4 @@ scheduler:
 
 monitor:
   method: epochs
-  interval: 5
+  interval: 1000
