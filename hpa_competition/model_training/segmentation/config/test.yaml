@@ -1,24 +1,25 @@
 ---
-project: brats_challenge
+project: hpa_challenge
 task: segmentation
-log_path: /home/ostap/logs/brats
+log_path: /home/kolinko/logs/hpa
 
 devices:
+  - 'cuda:1'
   - 'cuda:2'
 
 train:
-  path: /datasets/extra_space/brats/preprocessed/train_2d
+  path: /datasets/kolinko/balanced_data/
   transform:
-    size: &SIZE 192
-    augmentation_scope: none
-    images_normalization: &IMAGES_NORMALIZATION default
+    size: &SIZE 224
+    augmentation_scope: weak
+    images_normalization: &IMAGES_NORMALIZATION none
     images_output_format_type: &IMAGES_OUTPUT_FORMAT_TYPE float
     masks_normalization: &MASKS_NORMALIZATION none
     masks_output_format_type: &MASKS_FORMAT_TYPE long
     size_transform: crop_or_resize
 
 val:
-  path: /datasets/extra_space/brats/preprocessed/val_2d
+  path: /datasets/extra_space/ostap/brats/preprocessed/val_2d
   masks: segmentation
   transform:
     size: 256
@@ -30,24 +31,24 @@ val:
     size_transform: resize
 
 model:
-  arch: deeplab_v3
-  encoder: se_resnext50_32x4d
+  arch: unet_resnet
+  encoder_depth: 34
   classes: 4
   loss:
-    - name: mean_iou
-      weight: 0.5
+    - name: mean_dice
+      weight: 0.25
     - name: categorical_cross_entropy
       gamma: 1
-      class_weights: [0.00398384, 0.37205847, 0.16033528, 0.46362242]
-      weight: 0.5
+      class_weights: [0.00898384, 0.37205847, 0.16033528, 0.46362242]
+      weight: 0.75
   metrics:
     - dice
 
 num_epochs: 150
-batch_size: 16
+batch_size: 64
 optimizer:
   name: adam
-  lr: [0.0002, 0.001]
+  lr: 0.0003
   weight_decay: 0.000001
 
 #scheduler:
@@ -60,8 +61,8 @@ optimizer:
 scheduler:
   name: step
   gamma: 0.2
-  step_size: 10
+  step_size: 6
 
 monitor:
   method: epochs
-  interval: 100
+  interval: 1000
