@@ -1,5 +1,7 @@
-# convert segmentation mask image to run length encoding
+# convert classification mask image to run length encoding
 MAX_GREEN = 64  # filter out dark green cells
+import numpy as np
+from iterstrat.ml_stratifiers import MultilabelStratifiedKFold
 
 
 def get_rles_from_mask(image_id, class_id):
@@ -113,3 +115,82 @@ def mk_ann(idx):
     img = load_RGBY_image(image_id, train_or_test)
     cv2.imwrite(f'{img_dir}/{image_id}.jpg', img)
     return anno, idx, image_id
+
+import os
+import pandas as pd
+
+def get_df(path, train=True):
+    df = pd.read_csv(os.path.join(path, 'cell_df.csv'))
+    if not train:
+        return df
+
+    #TODO: how to use small samples
+
+    df = df.loc[df.size1 >= 224]
+    df = df.loc[df.size2 >= 224]
+
+    labels = [str(i) for i in range(19)]
+    for x in labels:
+        df[x] = df['image_labels'].apply(lambda r: int(x in r.split('|')))
+
+    # df = df.sample(frac=0.1, random_state=42).reset_index(drop=True)
+    # df = df.reset_index(drop=True)
+    dfs = df[['image_id' ] + labels].drop_duplicates()
+
+    nfold = 5
+    seed = None
+
+    y = dfs[labels].values
+    X = dfs[['image_id']].values
+    # print(X)
+
+    dfs['fold'] = np.nan
+
+    mskf = MultilabelStratifiedKFold(n_splits=nfold, random_state=seed)
+    for i, (_, test_index) in enumerate(mskf.split(X, y)):
+        dfs.iloc[test_index, -1] = i
+
+    dfs['fold'] = dfs['fold'].astype('int')
+    dfs['is_valid'] = False
+    dfs['is_valid'][dfs['fold'] == 0] = True
+
+    train_ = dfs.loc[~dfs.is_valid, 'image_id']
+    val_ = dfs.loc[dfs.is_valid, 'image_id']
+
+
+    # ln = int(0.8 * df.shape[0])
+    # while df.iloc[ln].image_id == df.iloc[ln - 1].image_id:
+    #     ln -= 1
+
+    train_df = df.loc[df.image_id.isin(train_)].reset_index(drop=True)
+    val_df = df.loc[df.image_id.isin(val_)].reset_index(drop=True)
+
+    # return train_df.sample(frac=0.1, random_state=42).reset_index(drop=True), val_df.sample(frac=0.1, random_state=42).reset_index(drop=True)
+    return train_df, val_df
+
+
+
+
+
+
+    # self.author_ids = self.df_author_article.unique_id.unique()
+    # np.random.shuffle(self.author_ids)
+    # ln = int(0.8 * len(self.author_ids))
+    # self.train, self.val = self.author_ids[:ln], self.author_ids[ln:]
+    # # TODO: rewrite isin + factorize (with map)
+    # self.train_inds = self.df_author_article.loc[
+    #     self.df_author_article['unique_id'].isin(self.train.tolist())].index
+    # self.val_inds = self.df_author_article.loc[self.df_author_article['unique_id'].isin(self.val.tolist())].index
+    #
+
+
+
+
+    # unique_counts = {lbl: len(dfs[dfs.image_labels == lbl]) for lbl in labels}
+    #
+    # full_counts = {lbl: dfs[lbl].sum() for lbl in labels}
+    #
+    # counts = list(zip(full_counts.keys(), full_counts.values(), unique_counts.values()))
+    # counts = np.array(sorted(counts, key=lambda x: -x[1]))
+    # counts = pd.DataFrame(counts, columns=['label', 'full_count', 'unique_count'])
+    # counts.set_index('label').T

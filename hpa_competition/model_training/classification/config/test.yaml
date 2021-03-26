@@ -1,14 +1,14 @@
 ---
 project: hpa_challenge
-task: segmentation
+task: classification
 log_path: /home/kolinko/logs/hpa
 
 devices:
   - 'cuda:1'
-  - 'cuda:2'
+#  - 'cuda:1'
 
 train:
-  path: /datasets/kolinko/balanced_data/
+  path: &TRAIN_PATH /datasets/kolinko/balanced_data/
   transform:
     size: &SIZE 224
     augmentation_scope: weak
@@ -19,8 +19,8 @@ train:
     size_transform: crop_or_resize
 
 val:
-  path: /datasets/extra_space/ostap/brats/preprocessed/val_2d
-  masks: segmentation
+  path: /datasets/kolinko/test_balanceed_data/
+  masks: classification
   transform:
     size: 256
     augmentation_scope: none
@@ -31,24 +31,24 @@ val:
     size_transform: resize
 
 model:
-  arch: unet_resnet
+  arch: resnet50
   encoder_depth: 34
-  classes: 4
+  classes: 19
   loss:
-    - name: mean_dice
-      weight: 0.25
+#    - name: mean_dice
+#      weight: 0.25
     - name: categorical_cross_entropy
-      gamma: 1
-      class_weights: [0.00898384, 0.37205847, 0.16033528, 0.46362242]
-      weight: 0.75
+#      gamma: 1
+#      class_weights: [0.00898384, 0.37205847, 0.16033528, 0.46362242]
+      weight: 1
   metrics:
-    - dice
+    - AP
 
-num_epochs: 150
+num_epochs: 15
 batch_size: 64
 optimizer:
   name: adam
-  lr: 0.0003
+  lr: 0.003
   weight_decay: 0.000001
 
 #scheduler:
@@ -66,3 +66,5 @@ scheduler:
 monitor:
   method: epochs
   interval: 1000
+
+experiment_name: resnet50-2021-03-23-13-05-50
