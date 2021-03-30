@@ -2,6 +2,26 @@
 MAX_GREEN = 64  # filter out dark green cells
 import numpy as np
 from iterstrat.ml_stratifiers import MultilabelStratifiedKFold
+import cv2
+import torch
+
+def load_RGBY_image(root_path, image_id, train_or_test='train', image_size=None):
+    red = read_img(root_path, image_id, "red", train_or_test, image_size)
+    green = read_img(root_path, image_id, "green", train_or_test, image_size)
+    blue = read_img(root_path, image_id, "blue", train_or_test, image_size)
+    rgb_arr = np.array([red, green, blue])
+    stacked_images = rgb_arr
+    return (stacked_images)
+
+def read_img(root_path, image_id, color, train_or_test='train', image_size=None):
+    filename = f'{root_path}/{train_or_test}/{image_id}_{color}.png'
+    assert os.path.exists(filename), f'not found {filename}'
+    img = cv2.imread(filename, cv2.IMREAD_UNCHANGED)
+    if image_size is not None:
+        img = cv2.resize(img, (image_size, image_size))
+    img_max = 255 if (img.max() <= 255) else img.max()
+    img = (img / img_max).astype('uint8')
+    return img
 
 
 def get_rles_from_mask(image_id, class_id):
@@ -85,26 +105,6 @@ def print_masked_img(image_id, mask):
 
 
 # image loader, using rgb only here
-def load_RGBY_image(image_id, train_or_test='train', image_size=None):
-    red = read_img(image_id, "red", train_or_test, image_size)
-    green = read_img(image_id, "green", train_or_test, image_size)
-    blue = read_img(image_id, "blue", train_or_test, image_size)
-    # yellow = read_img(image_id, "yellow", train_or_test, image_size)
-    stacked_images = np.transpose(np.array([red, green, blue]), (1, 2, 0))
-    return stacked_images
-
-
-#
-def read_img(image_id, color, train_or_test='train', image_size=None):
-    filename = f'{ROOT}/{train_or_test}/{image_id}_{color}.png'
-    assert os.path.exists(filename), f'not found {filename}'
-    img = cv2.imread(filename, cv2.IMREAD_UNCHANGED)
-    if image_size is not None:
-        img = cv2.resize(img, (image_size, image_size))
-    if img.max() > 255:
-        img_max = img.max()
-        img = (img / 255).astype('uint8')
-    return img
 
 
 # make annotation helper called multi processes
@@ -152,7 +152,7 @@ def get_df(path, train=True):
 
     dfs['fold'] = dfs['fold'].astype('int')
     dfs['is_valid'] = False
-    dfs['is_valid'][dfs['fold'] == 0] = True
+    dfs.loc[dfs['fold'] == 0, 'is_valid'] = True
 
     train_ = dfs.loc[~dfs.is_valid, 'image_id']
     val_ = dfs.loc[dfs.is_valid, 'image_id']
@@ -172,25 +172,29 @@ def get_df(path, train=True):
 
 
 
+def get_df_cam(path, train=True):
+    df = pd.read_csv(os.path.join(path, 'train.csv'))
+    labels = [str(i) for i in range(19)]
+    for x in labels:
+        df[x] = df['Label'].apply(lambda r: int(x in r.split('|')))
 
-    # self.author_ids = self.df_author_article.unique_id.unique()
-    # np.random.shuffle(self.author_ids)
-    # ln = int(0.8 * len(self.author_ids))
-    # self.train, self.val = self.author_ids[:ln], self.author_ids[ln:]
-    # # TODO: rewrite isin + factorize (with map)
-    # self.train_inds = self.df_author_article.loc[
-    #     self.df_author_article['unique_id'].isin(self.train.tolist())].index
-    # self.val_inds = self.df_author_article.loc[self.df_author_article['unique_id'].isin(self.val.tolist())].index
-    #
+    nfold = 5
+    seed = None
+    y = df[labels].values
+    X = df[['ID']].values
+    df['fold'] = np.nan
+
+    mskf = MultilabelStratifiedKFold(n_splits=nfold, random_state=seed)
+    for i, (_, test_index) in enumerate(mskf.split(X, y)):
+        df.iloc[test_index, -1] = i
+
+    df['fold'] = df['fold'].astype('int')
+    df['is_valid'] = False
+    df.loc[df['fold'] == 0, 'is_valid'] = True
+
+    train_df = df.loc[~df.is_valid].reset_index(drop=True)
+    val_df = df.loc[df.is_valid].reset_index(drop=True)
+
+    return train_df, val_df
 
 
-
-
-    # unique_counts = {lbl: len(dfs[dfs.image_labels == lbl]) for lbl in labels}
-    #
-    # full_counts = {lbl: dfs[lbl].sum() for lbl in labels}
-    #
-    # counts = list(zip(full_counts.keys(), full_counts.values(), unique_counts.values()))
-    # counts = np.array(sorted(counts, key=lambda x: -x[1]))
-    # counts = pd.DataFrame(counts, columns=['label', 'full_count', 'unique_count'])
-    # counts.set_index('label').T

@@ -4,6 +4,11 @@ import os
 import pandas as pd
 import numpy as np
 from PIL import Image
+from torch.utils.data import Dataset
+import cv2
+from hpa_competition.model_training.classification.utils import load_RGBY_image
+from hpa_competition.PuzzleCAM.tools.ai.torch_utils import one_hot_embedding
+
 
 class HPADataset(torch.utils.data.Dataset):
     def __init__(self, path, df, transform=None, return_original=False):
@@ -64,3 +69,32 @@ class HPADatasetTest(torch.utils.data.Dataset):
 
     def get_x(self, r):
         return os.path.join(self.path, 'cells/', (r['image_id'] + '_' + str(r['cell_id']) + '.jpg'))
+
+
+
+class HPADatasetCAM(Dataset):
+
+    def __init__(self, path, df, transform, img_size=224):
+        self.NUM_CL = 19
+        self.path = path
+        self.list_IDs = df['ID'].values
+        self.labels = df['Label'].values
+        self.img_size = img_size
+        self.transform = transform
+
+    def __len__(self):
+        return len(self.list_IDs)
+
+    def __getitem__(self, index):
+        ID = self.list_IDs[index]
+
+        X = load_RGBY_image(root_path=self.path, image_id=ID, train_or_test='train', image_size=self.img_size)
+        if self.transform is not None:
+            X = self.transform(np.transpose(X, (1, 2, 0)), mask=None).permute(2, 0, 1)
+
+        y = self.labels[index]
+        y = y.split('|')
+        y = list(map(int, y))
+        y = one_hot_embedding(y, self.NUM_CL)
+        return X, y.astype(np.float32)
+
