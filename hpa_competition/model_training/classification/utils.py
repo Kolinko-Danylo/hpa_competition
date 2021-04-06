@@ -4,24 +4,62 @@ import numpy as np
 from iterstrat.ml_stratifiers import MultilabelStratifiedKFold
 import cv2
 import torch
+import os
+import matplotlib.pyplot as plt
+import copy
+import torch.nn.functional as F
 
-def load_RGBY_image(root_path, image_id, train_or_test='train', image_size=None):
+def load_RGBY_image(root_path, image_id, train_or_test='train', image_size=None, yellow_channel=False):
     red = read_img(root_path, image_id, "red", train_or_test, image_size)
     green = read_img(root_path, image_id, "green", train_or_test, image_size)
     blue = read_img(root_path, image_id, "blue", train_or_test, image_size)
-    rgb_arr = np.array([red, green, blue])
-    stacked_images = rgb_arr
-    return (stacked_images)
+    if not yellow_channel:
+        return (np.array([red, green, blue]))
+    yellow = read_img(root_path, image_id, "yellow", train_or_test, image_size)
+
+    return (np.array([red, yellow, green, blue]))
 
 def read_img(root_path, image_id, color, train_or_test='train', image_size=None):
-    filename = f'{root_path}/{train_or_test}/{image_id}_{color}.png'
+    filename = os.path.join(root_path, train_or_test, f'{image_id}_{color}.png')
+
+    # filename = f'{root_path}/{train_or_test}/{image_id}_{color}.png'
     assert os.path.exists(filename), f'not found {filename}'
     img = cv2.imread(filename, cv2.IMREAD_UNCHANGED)
     if image_size is not None:
         img = cv2.resize(img, (image_size, image_size))
-    img_max = 255 if (img.max() <= 255) else img.max()
-    img = (img / img_max).astype('uint8')
+    # img_max = 255 if (img.max() <= 255) else img.max()
+    # img = (img / img_max).astype('uint8')
+    if img.max() > 255:
+        img_max = img.max()
+        img = (img/255).astype('uint8')
     return img
+
+
+def get_cam(model, ori_image, scale):
+    image = copy.deepcopy(ori_image)
+    # flipped_image = image.flip(-1)
+
+    # images = torch.stack([image, flipped_image])
+
+    _, features = model(image, with_cam=True)
+
+    cams = F.relu(features)
+    # cams = cams[0] + cams[1].flip(-1)
+
+    return cams
+
+
+def build_image_names(image_id: str, dir_path: str) -> list:
+    # mt is the mitchondria
+    mt = os.path.join(dir_path, f'{image_id}_red.png')
+
+    # er is the endoplasmic reticulum
+    er = os.path.join(dir_path, f'{image_id}_yellow.png')
+
+    # nu is the nuclei
+    nu = os.path.join(dir_path, f'{image_id}_blue.png')
+
+    return [mt], [er], [nu], [[mt], [er], [nu]]
 
 
 def get_rles_from_mask(image_id, class_id):
@@ -82,25 +120,18 @@ def mk_mmdet_custom_data(image_id, class_id):
 
 
 # print utility from public notebook
-def print_masked_img(image_id, mask):
-    img = load_RGBY_image(image_id, train_or_test)
-
-    plt.figure(figsize=(15, 15))
-    plt.subplot(1, 3, 1)
+def print_masked_img(path, image_id, mask):
+    img = load_RGBY_image(path, image_id, train_or_test='test', image_size=mask.size()[-1]).transpose([1, 2, 0])
+    plt.figure(figsize=(20, 20))
+    plt.subplot(1, 20, 1)
     plt.imshow(img)
-    plt.title('Image')
     plt.axis('off')
 
-    plt.subplot(1, 3, 2)
-    plt.imshow(mask)
-    plt.title('Mask')
-    plt.axis('off')
-
-    plt.subplot(1, 3, 3)
-    plt.imshow(img)
-    plt.imshow(mask, alpha=0.6)
-    plt.title('Image + Mask')
-    plt.axis('off')
+    for i in range(19):
+        plt.subplot(1, 20, 1 + i)
+        plt.imshow(img)
+        plt.imshow(mask[i], alpha=0.6)
+        plt.axis('off')
     plt.show()
 
 
@@ -192,9 +223,7 @@ def get_df_cam(path, train=True):
     df['is_valid'] = False
     df.loc[df['fold'] == 0, 'is_valid'] = True
 
-    train_df = df.loc[~df.is_valid].reset_index(drop=True)
-    val_df = df.loc[df.is_valid].reset_index(drop=True)
 
-    return train_df, val_df
+    return df
 
 

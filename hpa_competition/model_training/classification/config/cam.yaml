@@ -2,7 +2,6 @@
 project: hpa_challenge
 task: classification
 log_path: /home/kolinko/logs/cam/
-tag: ResNet50@Puzzle@optimal
 
 devices:
   - 'cuda:1'
@@ -10,19 +9,31 @@ devices:
 train:
   path: &TRAIN_PATH /datasets/kolinko/hpa
   transform:
-    size: &SIZE 224
+    size: &SIZE 512
     augmentation_scope: weak
     images_normalization: &IMAGES_NORMALIZATION none
     images_output_format_type: &IMAGES_OUTPUT_FORMAT_TYPE float
     masks_normalization: &MASKS_NORMALIZATION none
     masks_output_format_type: &MASKS_FORMAT_TYPE long
-    size_transform: crop_or_resize
+    size_transform: sized_crop
 
 val:
-  path: /datasets/kolinko/test_balanceed_data/
+  path: *TRAIN_PATH
   masks: classification
   transform:
-    size: 256
+    size: *SIZE
+    augmentation_scope: none
+    images_normalization: *IMAGES_NORMALIZATION
+    images_output_format_type: *IMAGES_OUTPUT_FORMAT_TYPE
+    masks_normalization: *MASKS_NORMALIZATION
+    masks_output_format_type: *MASKS_FORMAT_TYPE
+    size_transform: resize
+
+test:
+  path: *TRAIN_PATH
+  masks: classification
+  transform:
+    size: *SIZE
     augmentation_scope: none
     images_normalization: *IMAGES_NORMALIZATION
     images_output_format_type: *IMAGES_OUTPUT_FORMAT_TYPE
@@ -31,7 +42,7 @@ val:
     size_transform: resize
 
 model:
-  arch: resnet50
+  arch: efficientnet-b0
   encoder_depth: 34
   classes: 19
   loss:
@@ -43,9 +54,15 @@ model:
       weight: 1
   metrics:
     - AP
+  load_weights: False
+#  model_path: /home/kolinko/logs/cam/models/efficientnet-b0-2021-04-04-18-13-33.pth
+  model_path: /home/kolinko/logs/cam/models/efficientnet-b0-2021-04-02-16-45-39.pth
 
-num_epochs: 15
-batch_size: 32
+
+
+pred_dir: /datasets/kolinko/hpa_pred/cam
+num_epochs: 50
+batch_size: 20
 optimizer:
   name: adam
   lr: 0.003
@@ -61,3 +78,20 @@ monitor:
   interval: 1000
 
 experiment_name: resnet50-2021-03-23-13-05-50
+
+args:
+  seed: 0
+  num_workers: 8
+  mode: normal
+  lr: 0.1
+  wd: 0.0001
+  nesterov: True
+  image_size: 224
+  print_ratio: 0.1
+  num_pieces: 4
+  loss_option: cl_pcl_re
+  level: feature
+  re_loss: L1_Loss
+  alpha: 1.0
+  alpha_schedule: 0.50
+  re_loss_option: masking

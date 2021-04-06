@@ -6,8 +6,12 @@ import numpy as np
 from PIL import Image
 from torch.utils.data import Dataset
 import cv2
-from hpa_competition.model_training.classification.utils import load_RGBY_image
+from hpa_competition.model_training.classification.utils import load_RGBY_image, build_image_names
 from hpa_competition.PuzzleCAM.tools.ai.torch_utils import one_hot_embedding
+
+import hpacellseg.cellsegmentator as cellsegmentator
+
+from hpacellseg.utils import label_cell, label_nuclei
 
 
 class HPADataset(torch.utils.data.Dataset):
@@ -74,13 +78,14 @@ class HPADatasetTest(torch.utils.data.Dataset):
 
 class HPADatasetCAM(Dataset):
 
-    def __init__(self, path, df, transform, img_size=224):
+    def __init__(self, path, df, transform, img_size=224, yellow=False):
         self.NUM_CL = 19
         self.path = path
         self.list_IDs = df['ID'].values
         self.labels = df['Label'].values
         self.img_size = img_size
         self.transform = transform
+        self.yellow=yellow
 
     def __len__(self):
         return len(self.list_IDs)
@@ -88,13 +93,53 @@ class HPADatasetCAM(Dataset):
     def __getitem__(self, index):
         ID = self.list_IDs[index]
 
-        X = load_RGBY_image(root_path=self.path, image_id=ID, train_or_test='train', image_size=self.img_size)
+        X = load_RGBY_image(root_path=self.path, image_id=ID, train_or_test='train', image_size=None, yellow_channel=self.yellow)
         if self.transform is not None:
             X = self.transform(np.transpose(X, (1, 2, 0)), mask=None).permute(2, 0, 1)
-
         y = self.labels[index]
         y = y.split('|')
         y = list(map(int, y))
         y = one_hot_embedding(y, self.NUM_CL)
-        return X, y.astype(np.float32)
+        return X, y.astype(np.float32), ID
 
+
+
+class HPADatasetCAMTest(Dataset):
+
+    def __init__(self, path, df, transform, img_size=224, yellow=False):
+        self.NUM_CL = 19
+        self.path = path
+        self.list_IDs = df['ID'].values
+        self.img_size = img_size
+        self.transform = transform
+        self.yellow=yellow
+        self.segmentator = cellsegmentator.CellSegmentator(
+            '/home/kolinko/segm_models/dpn_unet_nuclei_v1.pth',
+            '/home/kolinko/segm_models/dpn_unet_cell_3ch_v1.pth',
+            scale_factor=0.25,
+            device='cpu',
+            padding=True,
+            multi_channel_model=True
+        )
+
+    def __len__(self):
+        return len(self.list_IDs)
+
+
+
+
+    def __getitem__(self, index):
+        ID = self.list_IDs[index]
+
+        X = load_RGBY_image(root_path=self.path, image_id=ID, train_or_test='test', image_size=None, yellow_channel=self.yellow)
+        if self.transform is not None:
+            X = self.transform(np.transpose(X, (1, 2, 0)), mask=None).permute(2, 0, 1)
+        #TODO: loaded twice
+        ppath = os.path.join(self.path, 'test')
+        images = build_image_names(ID, ppath)[-1]
+        nuc_segmentations = self.segmentator.pred_nuclei(images[2])
+
+        cell_segmentations = self.segmentator.pred_cells(images)
+        nuclei_mask, cell_mask = label_cell(nuc_segmentations, cell_segmentations)
+
+        return X, ID, nuclei_mask, cell_mask
