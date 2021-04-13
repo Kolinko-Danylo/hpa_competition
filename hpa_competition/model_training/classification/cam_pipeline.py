@@ -56,11 +56,15 @@ class CAMTrainer:
         self._init_params()
         for ep in range(self.config['num_epochs']):
             self.epoch = ep
-            # self.alpha=1.0
+            self.alpha=1.0
+
+            # ap_score = self.run_epoch(metric=self.val_ap, loss_meter=self.val_meter, data_loader=self.val_dl,
+            #                           train=False)
+            # print('end_val')
             self.run_epoch(metric=self.train_ap, loss_meter=self.train_meter,
                                                         data_loader=self.train_dl, train=True)
 
-            ap_score = self.run_epoch(metric=self.val_ap, loss_meter=self.train_meter, data_loader=self.val_dl,
+            ap_score = self.run_epoch(metric=self.val_ap, loss_meter=self.val_meter, data_loader=self.val_dl,
                                       train=False)
 
 
@@ -73,7 +77,7 @@ class CAMTrainer:
 
 
     def _init_params(self):
-        self.model = Classifier(self.config['model']['arch'], num_classes=self.config['model']['classes'], mode=self.config['args']['mode'])
+        self.model = Classifier(self.config['model']['arch'], self.config['model']['pretreined'], num_classes=self.config['model']['classes'], mode=self.config['args']['mode'])
         # self.param_groups = self.model.get_parameter_groups(print_fn=None)
         self.model.cuda()
         self.gap_fn = self.model.global_average_pooling_2d
@@ -124,11 +128,15 @@ class CAMTrainer:
     def run_epoch(self, metric, loss_meter, data_loader, train=True):
         data_iterator = Iterator(data_loader)
         iteration_num = len(data_loader)
+        torch.set_grad_enabled(train)
+
         if train:
             self.model.train()
+
         else:
             self.model.eval()
             metric.reset()
+
 
         for iter in range(iteration_num):
 
@@ -202,7 +210,12 @@ class CAMTrainer:
             })
 
             if not train:
-                metric.add(self.sigmoid(logits), labels)
+                probs = self.sigmoid(logits).cpu().detach().numpy()
+                labels = labels.int().cpu().detach().numpy()
+                metric.add(probs, labels)
+                pass
+
+
             elif not ( (iter + 1) % int(len(self.train_dl) * self.config['args']['print_ratio'])):
                 tr_itt = (self.epoch) * len(self.train_dl)
                 self.log_results(iter + tr_itt , loss_meter, train)
@@ -211,6 +224,7 @@ class CAMTrainer:
 
         if not train:
             metric_score = metric.get()
+            metric_score = 0
             tr_itt = (self.epoch+1)*len(self.train_dl)
             metric.write_to_tensorboard(self.writer, tr_itt, prefix='VAL_AP/')
             self.log_results(tr_itt, loss_meter, train)

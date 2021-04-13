@@ -1,13 +1,13 @@
 ---
 project: hpa_challenge
 task: classification
-log_path: /home/kolinko/logs/cam/
+log_path: /home/danylokolinko/logs/cam/
 
 devices:
-  - 'cuda:1'
+  - 'cuda'
 
 train:
-  path: &TRAIN_PATH /datasets/kolinko/hpa
+  path: &TRAIN_PATH /common/danylokolinko/hpa
   transform:
     size: &SIZE 512
     augmentation_scope: weak
@@ -56,15 +56,17 @@ model:
   metrics:
     - AP
   load_weights: False
-#  model_path: /home/kolinko/logs/cam/models/efficientnet-b0-2021-04-04-18-13-33.pth
-  model_path: /home/kolinko/logs/cam/models/efficientnet-b0-2021-04-02-16-45-39.pth
+  model_path: /home/danylokolinko/logs/cam/models/efficientnet-b0-2021-04-12-22-05-41.pth
+
+#  model_path: /home/danylokolinko/logs/cam/models/efficientnet-b0-2021-04-04-18-13-33.pth
+#  model_path: /home/danylokolinko/logs/cam/models/efficientnet-b0-2021-04-02-16-45-39.pth
 
 segm_model:
-  nuclei_path: '/home/kolinko/segm_models/dpn_unet_nuclei_v1.pth'
-  cell_path: '/home/kolinko/segm_models/dpn_unet_cell_3ch_v1.pth',
+  nuclei_path: '/home/danylokolinko/segm_models/dpn_unet_nuclei_v1.pth'
+  cell_path: '/home/danylokolinko/segm_models/dpn_unet_cell_3ch_v1.pth'
 
-pred_dir: /datasets/kolinko/hpa_pred/cam
-num_epochs: 50
+pred_dir: /common/danylokolinko/hpa_pred/cam
+num_epochs: 100
 batch_size: 20
 optimizer:
   name: adam

@@ -59,9 +59,7 @@ model:
 #  model_path: /home/kolinko/logs/cam/models/efficientnet-b0-2021-04-04-18-13-33.pth
   model_path: /home/kolinko/logs/cam/models/efficientnet-b0-2021-04-02-16-45-39.pth
 
-segm_model:
-  nuclei_path: '/home/kolinko/segm_models/dpn_unet_nuclei_v1.pth'
-  cell_path: '/home/kolinko/segm_models/dpn_unet_cell_3ch_v1.pth',
+
 
 pred_dir: /datasets/kolinko/hpa_pred/cam
 num_epochs: 50

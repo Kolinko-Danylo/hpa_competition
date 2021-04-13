@@ -22,12 +22,18 @@ from hpa_competition.model_training.common.augmentations import get_transforms
 from utils  import get_df, get_df_cam
 import yaml
 from cam_pipeline import CAMTrainer
+from hpa_competition.PuzzleCAM.core.networks import Classifier
 
 
 
 if __name__ == '__main__':
-    with open(os.path.join(os.path.dirname(__file__), 'config', 'cam.yaml')) as config_file:
+    with open(os.path.join(os.path.dirname(__file__), 'config', 'cam_avenga.yaml')) as config_file:
         config = yaml.full_load(config_file)
+
+    # model = Classifier(config['model']['arch'], config['model']['pretreined'],
+    #                num_classes=config['model']['classes'], mode=config['args']['mode'])
+    # trainer = CAMTrainer(config, None, None)
+
     set_seed(config['args']['seed'])
 
     train_transform = get_transforms(config['train']['transform'])
@@ -51,6 +57,11 @@ if __name__ == '__main__':
 
     trainer = CAMTrainer(config, train_loader, val_loader)
     trainer.train()
+
+
+
+
+
 
 
 

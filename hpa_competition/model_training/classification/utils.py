@@ -49,17 +49,17 @@ def get_cam(model, ori_image, scale):
     return cams
 
 
-def build_image_names(image_id: str, dir_path: str) -> list:
+def build_image_names(image_id: tuple, dir_path: str) -> list:
     # mt is the mitchondria
-    mt = os.path.join(dir_path, f'{image_id}_red.png')
+    mt = list(map(lambda image_idx: os.path.join(dir_path, f'{image_idx}_red.png'), image_id))
 
     # er is the endoplasmic reticulum
-    er = os.path.join(dir_path, f'{image_id}_yellow.png')
+    er = list(map(lambda image_idx: os.path.join(dir_path, f'{image_idx}_yellow.png'), image_id))
 
     # nu is the nuclei
-    nu = os.path.join(dir_path, f'{image_id}_blue.png')
+    nu = list(map(lambda image_idx: os.path.join(dir_path, f'{image_idx}_blue.png'), image_id))
 
-    return [mt], [er], [nu], [[mt], [er], [nu]]
+    return mt, er, nu, [mt, er, nu]
 
 
 def get_rles_from_mask(image_id, class_id):
@@ -120,8 +120,8 @@ def mk_mmdet_custom_data(image_id, class_id):
 
 
 # print utility from public notebook
-def print_masked_img(path, image_id, mask):
-    img = load_RGBY_image(path, image_id, train_or_test='test', image_size=mask.size()[-1]).transpose([1, 2, 0])
+def print_masked_img(path, image_id, mask, train_or_test='test'):
+    img = load_RGBY_image(path, image_id, train_or_test=train_or_test, image_size=mask.size()[-1]).transpose([1, 2, 0])
     plt.figure(figsize=(20, 20))
     plt.subplot(1, 20, 1)
     plt.imshow(img)

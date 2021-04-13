@@ -106,21 +106,21 @@ class HPADatasetCAM(Dataset):
 
 class HPADatasetCAMTest(Dataset):
 
-    def __init__(self, path, df, transform, img_size=224, yellow=False):
+    def __init__(self, path, df, transform, img_size=224, yellow=False, segm_models=None):
         self.NUM_CL = 19
         self.path = path
         self.list_IDs = df['ID'].values
         self.img_size = img_size
         self.transform = transform
         self.yellow=yellow
-        self.segmentator = cellsegmentator.CellSegmentator(
-            '/home/kolinko/segm_models/dpn_unet_nuclei_v1.pth',
-            '/home/kolinko/segm_models/dpn_unet_cell_3ch_v1.pth',
-            scale_factor=0.25,
-            device='cpu',
-            padding=True,
-            multi_channel_model=True
-        )
+        # self.segmentator = cellsegmentator.CellSegmentator(
+        #     segm_models['nuclei_path'],
+        #     segm_models['cell_path'],
+        #     scale_factor=0.25,
+        #     device='cpu',
+        #     padding=True,
+        #     multi_channel_model=True
+        # )
 
     def __len__(self):
         return len(self.list_IDs)
@@ -134,12 +134,14 @@ class HPADatasetCAMTest(Dataset):
         X = load_RGBY_image(root_path=self.path, image_id=ID, train_or_test='test', image_size=None, yellow_channel=self.yellow)
         if self.transform is not None:
             X = self.transform(np.transpose(X, (1, 2, 0)), mask=None).permute(2, 0, 1)
-        #TODO: loaded twice
-        ppath = os.path.join(self.path, 'test')
-        images = build_image_names(ID, ppath)[-1]
-        nuc_segmentations = self.segmentator.pred_nuclei(images[2])
+        return X, ID
 
-        cell_segmentations = self.segmentator.pred_cells(images)
-        nuclei_mask, cell_mask = label_cell(nuc_segmentations, cell_segmentations)
-
-        return X, ID, nuclei_mask, cell_mask
+        # #TODO: loaded twice
+        # ppath = os.path.join(self.path, 'test')
+        # images = build_image_names(ID, ppath)[-1]
+        # nuc_segmentations = self.segmentator.pred_nuclei(images[2])
+        #
+        # cell_segmentations = self.segmentator.pred_cells(images)
+        # nuclei_mask, cell_mask = label_cell(nuc_segmentations, cell_segmentations)
+        #
+        # return X, ID, nuclei_mask, cell_mask
