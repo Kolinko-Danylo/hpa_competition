@@ -1,29 +1,29 @@
 ---
 project: hpa_challenge
 task: classification
-log_path: /home/kolinko/logs/cam/
-expchange: transformer_bottleneck
+log_path: /home/danylokolinko/logs/cam/
+expchange: channel_dropout
 
 devices:
-  - 'cuda:0'
+  - 'cuda'
+
 
 use_amp: True
-
 train:
-  path: &TRAIN_PATH /datasets/kolinko/hpa
+  path: &TRAIN_PATH /common/danylokolinko/hpa
   b8: &B8 False
 
   transform:
     size: &SIZE 512
-    augmentation_scope: new
+    augmentation_scope: none
     images_normalization: &IMAGES_NORMALIZATION default
-    images_output_format_type: &IMAGES_OUTPUT_FORMAT_TYPE float16
+    images_output_format_type: &IMAGES_OUTPUT_FORMAT_TYPE float
     masks_normalization: &MASKS_NORMALIZATION none
     masks_output_format_type: &MASKS_FORMAT_TYPE none
     size_transform: resize
 
   load_mask: &LOAD_MASK True
-  mask_path: &MASK_PATH /datasets/kolinko/hpa-mask/
+  mask_path: &MASK_PATH /common/danylokolinko/hpa_mask/
   cell_input: &CELL_INPUT False
   nuclei_input: &NUCLEI_INPUT False
 
@@ -60,14 +60,15 @@ test:
     size_transform: resize
 
 model:
-  arch: tf_efficientnet_b4
+  affinity_arch: resnet50
+  arch: resnet50
   pretrained: True
-  classifier_param: null
   stride2dilation: False
+
+  classifier_param: null
 
   encoder_depth: 34
   mode: normal
-
   classes: 19
   cell_input: *CELL_INPUT
   nuclei_input: *NUCLEI_INPUT
@@ -75,37 +76,30 @@ model:
     - red
     - green
     - blue
-    - yellow
 
-  transformer: True
-  transformer_out: 512
-
+ #   - yellow
 
   loss:
-      name: focal_w_logits
-      gamma: 1
-      div: 10
-
-      class_weights: 1
 #    - name: mean_dice
 #      weight: 0.25
-#    - name: categorical_cross_entropy
-#      gamma: 1
-#      class_weights: [0.00898384, 0.37205847, 0.16033528, 0.46362242]
-#      weight: 1
+    name: focal_w_logits
+    div: 10
+    gamma: 1
+
+#        class_weights: [0.00898384, 0.37205847, 0.16033528, 0.46362242]
+
   metrics:
     - AP
   load_weights: False
-#  model_path: /home/kolinko/logs/cam/models/efficientnet-b0-2021-04-04-18-13-33.pth
-  model_path: /home/kolinko/logs/cam/models/efficientnet-b0-2021-04-02-16-45-39.pth
+  model_path: /home/danylokolinko/logs/cam/models/tf_efficientnet_b4-2021-04-26-23-11-24_channel_dropout.pth
 
 segm_model:
-  nuclei_path: '/home/kolinko/segm_models/dpn_unet_nuclei_v1.pth'
-  cell_path: '/home/kolinko/segm_models/dpn_unet_cell_3ch_v1.pth'
+  nuclei_path: '/home/danylokolinko/segm_models/dpn_unet_nuclei_v1.pth'
+  cell_path: '/home/danylokolinko/segm_models/dpn_unet_cell_3ch_v1.pth'
 
-pred_dir: /datasets/kolinko/hpa_pred/cam
+pred_dir: /common/danylokolinko/hpa_pred/cam
 num_epochs: 25
-batch_size: 10
+batch_size: 1
 optimizer:
   name: adam
   lr: 0.0005
@@ -122,18 +116,25 @@ monitor:
 
 experiment_name: resnet50-2021-03-23-13-05-50
 
+
 args:
   seed: 0
-  num_workers: 16
+  num_workers: 20
   lr: 0.3
   wd: 0.0001
   nesterov: True
   image_size: 224
   print_ratio: 0.1
-  num_pieces: 4
+  num_pieces: 9
   loss_option: cl_pcl_re
   level: feature
   re_loss: L1_Loss
-  alpha: 1.0
-  alpha_schedule: 0.50
+  alpha: 1.5
+  alpha_schedule: 0.7
   re_loss_option: masking
+  scales: '0.8, 1, 1.2'
+  domain: train
+  fg_threshold: 0.5
+  bg_threshold: 0.2
+
+

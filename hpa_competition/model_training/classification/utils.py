@@ -8,45 +8,46 @@ import os
 import matplotlib.pyplot as plt
 import copy
 import torch.nn.functional as F
+import pandas as pd
+import base64
+import numpy as np
+from pycocotools import _mask as coco_mask
+import typing as t
+import zlib
 
-def load_RGBY_image(root_path, image_id, train_or_test='train', image_size=None, yellow_channel=False):
-    red = read_img(root_path, image_id, "red", train_or_test, image_size)
-    green = read_img(root_path, image_id, "green", train_or_test, image_size)
-    blue = read_img(root_path, image_id, "blue", train_or_test, image_size)
-    if not yellow_channel:
-        return (np.array([red, green, blue]))
-    yellow = read_img(root_path, image_id, "yellow", train_or_test, image_size)
+def load_RGBY_image(root_path, train_or_test, image_id, channels=['red', 'green', 'blue', 'yellow'], image_size=None, b8=True):
+    return np.array(list(map(lambda x: read_img(root_path, train_or_test, image_id, x, image_size, b8), channels)))
 
-    return (np.array([red, yellow, green, blue]))
-
-def read_img(root_path, image_id, color, train_or_test='train', image_size=None):
+def read_img(root_path, train_or_test, image_id, color, image_size=None, b8=True):
     filename = os.path.join(root_path, train_or_test, f'{image_id}_{color}.png')
-
-    # filename = f'{root_path}/{train_or_test}/{image_id}_{color}.png'
     assert os.path.exists(filename), f'not found {filename}'
+
     img = cv2.imread(filename, cv2.IMREAD_UNCHANGED)
     if image_size is not None:
         img = cv2.resize(img, (image_size, image_size))
-    # img_max = 255 if (img.max() <= 255) else img.max()
-    # img = (img / img_max).astype('uint8')
+
+    # if b8:
     if img.max() > 255:
         img_max = img.max()
-        img = (img/255).astype('uint8')
+        img = (img/256).astype('uint8')
     return img
 
+def unnorm_features(model, features):
+    return ((features - model.classifier[1].bias.view(1, -1, 1, 1)) / model.classifier[1].weight.view(1, -1, 1, 1))
 
-def get_cam(model, ori_image, scale):
+def get_cam(model, ori_image, scale=1):
     image = copy.deepcopy(ori_image)
     # flipped_image = image.flip(-1)
 
     # images = torch.stack([image, flipped_image])
 
-    _, features = model(image, with_cam=True)
-
-    cams = F.relu(features)
+    preds, features = model(image, with_cam=True)
+    # unn_features = ((features - model.classifier[1].bias.view(1, -1, 1, 1)) / model.classifier[1].weight.view(1, -1, 1, 1))
+    unn_features = None
+    # cams = F.relu(features)
     # cams = cams[0] + cams[1].flip(-1)
 
-    return cams
+    return features, preds
 
 
 def build_image_names(image_id: tuple, dir_path: str) -> list:
@@ -62,73 +63,75 @@ def build_image_names(image_id: tuple, dir_path: str) -> list:
     return mt, er, nu, [mt, er, nu]
 
 
-def get_rles_from_mask(image_id, class_id):
-    mask = np.load(f'{cell_mask_dir}/{image_id}.npz')['arr_0']
-    if class_id != '18':
-        green_img = read_img(image_id, 'green')
-    rle_list = []
-    mask_ids = np.unique(mask)
-    for val in mask_ids:
-        if val == 0:
-            continue
-        binary_mask = np.where(mask == val, 1, 0).astype(bool)
-        if class_id != '18':
-            masked_img = green_img * binary_mask
-            # print(val, green_img.max(),masked_img.max())
-            if masked_img.max() < MAX_GREEN:
-                continue
-        rle = coco_rle_encode(binary_mask)
-        rle_list.append(rle)
-    return rle_list, mask.shape[0], mask.shape[1]
+# def get_rles_from_mask(image_id, class_id):
+#     mask = np.load(f'{cell_mask_dir}/{image_id}.npz')['arr_0']
+#     if class_id != '18':
+#         green_img = read_img(image_id, 'green')
+#     rle_list = []
+#     mask_ids = np.unique(mask)
+#     for val in mask_ids:
+#         if val == 0:
+#             continue
+#         binary_mask = np.where(mask == val, 1, 0).astype(bool)
+#         if class_id != '18':
+#             masked_img = green_img * binary_mask
+#             # print(val, green_img.max(),masked_img.max())
+#             if masked_img.max() < MAX_GREEN:
+#                 continue
+#         rle = coco_rle_encode(binary_mask)
+#         rle_list.append(rle)
+#     return rle_list, mask.shape[0], mask.shape[1]
 
 
-def coco_rle_encode(mask):
-    rle = {'counts': [], 'size': list(mask.shape)}
-    counts = rle.get('counts')
-    for i, (value, elements) in enumerate(groupby(mask.ravel(order='F'))):
-        if i == 0 and value == 1:
-            counts.append(0)
-        counts.append(len(list(elements)))
-    return rle
+# def coco_rle_encode(mask):
+#     rle = {'counts': [], 'size': list(mask.shape)}
+#     counts = rle.get('counts')
+#     for i, (value, elements) in enumerate(groupby(mask.ravel(order='F'))):
+#         if i == 0 and value == 1:
+#             counts.append(0)
+#         counts.append(len(list(elements)))
+#     return rle
 
 
 # mmdet custom dataset generator
-def mk_mmdet_custom_data(image_id, class_id):
-    rles, height, width = get_rles_from_mask(image_id, class_id)
-    if len(rles) == 0:
-        return {
-            'filename': image_id + '.jpg',
-            'width': width,
-            'height': height,
-            'ann': {}
-        }
-    rles = mutils.frPyObjects(rles, height, width)
-    bboxes = mutils.toBbox(rles)
-    bboxes[:, 2] += bboxes[:, 0]
-    bboxes[:, 3] += bboxes[:, 1]
-    return {
-        'filename': image_id + '.jpg',
-        'width': width,
-        'height': height,
-        'ann':
-            {
-                'bboxes': np.array(bboxes, dtype=np.float32),
-                'labels': np.zeros(len(bboxes)),  # dummy data.(will be replaced later)
-                'masks': rles
-            }
-    }
+# def mk_mmdet_custom_data(image_id, class_id):
+#     rles, height, width = get_rles_from_mask(image_id, class_id)
+#     if len(rles) == 0:
+#         return {
+#             'filename': image_id + '.jpg',
+#             'width': width,
+#             'height': height,
+#             'ann': {}
+#         }
+#     rles = mutils.frPyObjects(rles, height, width)
+#     bboxes = mutils.toBbox(rles)
+#     bboxes[:, 2] += bboxes[:, 0]
+#     bboxes[:, 3] += bboxes[:, 1]
+#     return {
+#         'filename': image_id + '.jpg',
+#         'width': width,
+#         'height': height,
+#         'ann':
+#             {
+#                 'bboxes': np.array(bboxes, dtype=np.float32),
+#                 'labels': np.zeros(len(bboxes)),  # dummy data.(will be replaced later)
+#                 'masks': rles
+#             }
+#     }
 
 
 # print utility from public notebook
-def print_masked_img(path, image_id, mask, train_or_test='test'):
-    img = load_RGBY_image(path, image_id, train_or_test=train_or_test, image_size=mask.size()[-1]).transpose([1, 2, 0])
-    plt.figure(figsize=(20, 20))
+def print_masked_img(path, train_or_test, image_id, mask):
+    image_size=mask.size()[-1]
+    img = load_RGBY_image(root_path=path, train_or_test=train_or_test, image_id=image_id, image_size=image_size)
+    img = img[[0, 1, 2]].transpose([1, 2, 0])
+    plt.figure(figsize=(30, 30))
     plt.subplot(1, 20, 1)
     plt.imshow(img)
     plt.axis('off')
 
     for i in range(19):
-        plt.subplot(1, 20, 1 + i)
+        plt.subplot(1, 20, 2 + i)
         plt.imshow(img)
         plt.imshow(mask[i], alpha=0.6)
         plt.axis('off')
@@ -139,16 +142,15 @@ def print_masked_img(path, image_id, mask, train_or_test='test'):
 
 
 # make annotation helper called multi processes
-def mk_ann(idx):
-    image_id = df.iloc[idx].ID
-    class_id = df.iloc[idx].Label
-    anno = mk_mmdet_custom_data(image_id, class_id)
-    img = load_RGBY_image(image_id, train_or_test)
-    cv2.imwrite(f'{img_dir}/{image_id}.jpg', img)
-    return anno, idx, image_id
+# def mk_ann(idx):
+#     image_id = df.iloc[idx].ID
+#     class_id = df.iloc[idx].Label
+#     anno = mk_mmdet_custom_data(image_id, class_id)
+#     img = load_RGBY_image(image_id, train_or_test)
+#     cv2.imwrite(f'{img_dir}/{image_id}.jpg', img)
+#     return anno, idx, image_id
 
-import os
-import pandas as pd
+
 
 def get_df(path, train=True):
     df = pd.read_csv(os.path.join(path, 'cell_df.csv'))
@@ -200,11 +202,39 @@ def get_df(path, train=True):
     return train_df, val_df
 
 
+def encode_binary_mask(mask: np.ndarray) -> t.Text:
+    """Converts a binary mask into OID challenge encoding ascii text."""
 
+    # check input mask --
+    if mask.dtype != np.bool:
+        raise ValueError(
+            "encode_binary_mask expects a binary mask, received dtype == %s" %
+            mask.dtype)
+
+    mask = np.squeeze(mask)
+    if len(mask.shape) != 2:
+        raise ValueError(
+            "encode_binary_mask expects a 2d mask, received shape == %s" %
+            mask.shape)
+
+    # convert input mask to expected COCO API input --
+    mask_to_encode = mask.reshape(mask.shape[0], mask.shape[1], 1)
+    mask_to_encode = mask_to_encode.astype(np.uint8)
+    mask_to_encode = np.asfortranarray(mask_to_encode)
+
+    # RLE encode mask --
+    encoded_mask = coco_mask.encode(mask_to_encode)[0]["counts"]
+
+    # compress and base64 encoding --
+    binary_str = zlib.compress(encoded_mask, zlib.Z_BEST_COMPRESSION)
+    base64_str = base64.b64encode(binary_str)
+    return base64_str
 
 
 def get_df_cam(path, train=True):
     df = pd.read_csv(os.path.join(path, 'train.csv'))
+    # if train:
+    #     return df
     labels = [str(i) for i in range(19)]
     for x in labels:
         df[x] = df['Label'].apply(lambda r: int(x in r.split('|')))

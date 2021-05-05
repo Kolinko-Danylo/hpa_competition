@@ -2,23 +2,39 @@
 project: hpa_challenge
 task: classification
 log_path: /home/danylokolinko/logs/cam/
+expchange: pretrain_on_public
+
+pretrain: True
 
 devices:
   - 'cuda'
 
+
+hpasegm_predictions: /common/danylokolinko/publichpa_mask_semantic
+
+use_amp: True
 train:
-  path: &TRAIN_PATH /common/danylokolinko/hpa
+  path: &TRAIN_PATH /common/danylokolinko/publichpa
+  b8: &B8 False
+
   transform:
     size: &SIZE 512
-    augmentation_scope: weak
-    images_normalization: &IMAGES_NORMALIZATION none
-    images_output_format_type: &IMAGES_OUTPUT_FORMAT_TYPE float
+    augmentation_scope: new
+    images_normalization: &IMAGES_NORMALIZATION default
+    images_output_format_type: &IMAGES_OUTPUT_FORMAT_TYPE float16
     masks_normalization: &MASKS_NORMALIZATION none
-    masks_output_format_type: &MASKS_FORMAT_TYPE long
-    size_transform: sized_crop
+    masks_output_format_type: &MASKS_FORMAT_TYPE int
+    size_transform: resize
+    mask_dropout: False
+
+  load_mask: &LOAD_MASK False
+  mask_path: &MASK_PATH /common/danylokolinko/hpa_mask/
+  cell_input: &CELL_INPUT False
+  nuclei_input: &NUCLEI_INPUT False
 
 val:
   path: *TRAIN_PATH
+  b8: *B8
   masks: classification
   transform:
     size: *SIZE
@@ -28,9 +44,18 @@ val:
     masks_normalization: *MASKS_NORMALIZATION
     masks_output_format_type: *MASKS_FORMAT_TYPE
     size_transform: resize
+    mask_dropout: False
+
+
+  load_mask: *LOAD_MASK
+  mask_path: *MASK_PATH
+  cell_input: *CELL_INPUT
+  nuclei_input: *NUCLEI_INPUT
+
 
 test:
   path: *TRAIN_PATH
+  b8: *B8
   masks: classification
   transform:
     size: *SIZE
@@ -40,37 +65,53 @@ test:
     masks_normalization: *MASKS_NORMALIZATION
     masks_output_format_type: *MASKS_FORMAT_TYPE
     size_transform: resize
+    mask_dropout: False
+
 
 model:
-  arch: efficientnet-b0
-  pretreined: False
+  segmentation: True
+  arch: timm-efficientnet-b4
+  pretrained: True
+  stride2dilation: False
+
+  classifier_param: null
+
   encoder_depth: 34
+  mode: normal
   classes: 19
+  segm_classes: 2
+  cell_input: *CELL_INPUT
+  nuclei_input: *NUCLEI_INPUT
+  in_channels:
+    - red
+    - green
+    - blue
+    - yellow
+
   loss:
 #    - name: mean_dice
 #      weight: 0.25
-    - name: categorical_cross_entropy
-#      gamma: 1
-#      class_weights: [0.00898384, 0.37205847, 0.16033528, 0.46362242]
-      weight: 1
+    name: focal_w_logits
+    div: 10
+    gamma: 1
+
+#        class_weights: [0.00898384, 0.37205847, 0.16033528, 0.46362242]
+
   metrics:
     - AP
   load_weights: False
-  model_path: /home/danylokolinko/logs/cam/models/efficientnet-b0-2021-04-12-22-05-41.pth
-
-#  model_path: /home/danylokolinko/logs/cam/models/efficientnet-b0-2021-04-04-18-13-33.pth
-#  model_path: /home/danylokolinko/logs/cam/models/efficientnet-b0-2021-04-02-16-45-39.pth
+  model_path: /home/danylokolinko/logs/cam/models/timm-efficientnet-b4-2021-05-04-12-55-27_channel_dropout_cell_level.pth
 
 segm_model:
   nuclei_path: '/home/danylokolinko/segm_models/dpn_unet_nuclei_v1.pth'
   cell_path: '/home/danylokolinko/segm_models/dpn_unet_cell_3ch_v1.pth'
 
 pred_dir: /common/danylokolinko/hpa_pred/cam
-num_epochs: 100
-batch_size: 20
+num_epochs: 30
+batch_size: 10
 optimizer:
   name: adam
-  lr: 0.003
+  lr: 0.001
   weight_decay: 0.000001
 
 scheduler:
@@ -84,11 +125,11 @@ monitor:
 
 experiment_name: resnet50-2021-03-23-13-05-50
 
+
 args:
   seed: 0
-  num_workers: 8
-  mode: normal
-  lr: 0.1
+  num_workers: 20
+  lr: 0.3
   wd: 0.0001
   nesterov: True
   image_size: 224
@@ -96,7 +137,9 @@ args:
   num_pieces: 4
   loss_option: cl_pcl_re
   level: feature
-  re_loss: L1_Loss
-  alpha: 1.0
-  alpha_schedule: 0.50
+  re_loss: L2_Loss
+  alpha: 1
+  alpha_schedule: 0.5
   re_loss_option: masking
+
+

@@ -42,7 +42,7 @@ test:
     size_transform: resize
 
 model:
-  arch: efficientnet-b0
+  arch: efficientnet-b3
   pretreined: False
   encoder_depth: 34
   classes: 19
@@ -63,7 +63,7 @@ model:
 
 pred_dir: /datasets/kolinko/hpa_pred/cam
 num_epochs: 50
-batch_size: 20
+batch_size: 12
 optimizer:
   name: adam
   lr: 0.003
