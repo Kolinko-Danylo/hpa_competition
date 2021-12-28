@@ -53,59 +53,14 @@ from concurrent.futures import ThreadPoolExecutor
 
 from hpa_competition.model_training.classification.utils import load_RGBY_image
 from hpa_competition.PuzzleCAM.tools.ai.torch_utils import one_hot_embedding
+import albumentations as A
+res_dict = {t: A.Resize(t, t, interpolation=cv2.INTER_NEAREST_EXACT) for t in [2048, 3072, 1728]}
 
-
-# with open(os.path.join('config', 'cam_avenga.yaml')) as config_file:
-#     config = yaml.full_load(config_file)
-#
-# # print(config['model']['model_path'])
-#
-#     def cust(id):
-#
-#         def load_shit(id):
-#             cache_path = '/common/danylokolinko/hpa_cache/'
-#             nuc_load = lambda image_id: os.path.join(cache_path, 'nuc', image_id)
-#             cell_load = lambda image_id: os.path.join(cache_path, 'cell', image_id)
-#             nuc_segmentations = np.load(f'{nuc_load(id)}.npy')
-#             cell_segmentations = np.load(f'{cell_load(id)}.npy')
-#             pth = os.path.join(cache_path, f'cams/efficientnet-b4-2021-04-21-00-18-21')
-#             CAMs = torch.load(os.path.join(pth, f'{id}.npy'), map_location=torch.device('cpu')).type(
-#                 torch.FloatTensor)
-#             return nuc_segmentations, cell_segmentations, CAMs
-#
-#         nuclei_mask, cell_mask, CAMs = load_shit(id)
-#         cell_mask = torch.from_numpy(cell_mask.astype(np.int32))
-#         cell_masks = cell_mask #.cuda()
-#
-#         image_rles = []
-#
-#         CAMS = resize_for_tensors(CAMs.unsqueeze(0), cell_masks.shape)[0]
-#         cur_sz = cell_masks.amax(dim=(0, 1)).item()
-#         cur_cams = CAMS.unsqueeze(0) #1, 19, h, w
-#         cur_cell_masks = cell_masks.unsqueeze(0).expand(cur_sz, -1, -1, -1)
-#         cur_cell_masks = (cur_cell_masks == torch.arange(1, cur_sz+1).unsqueeze(-1).unsqueeze(-1).unsqueeze(-1))
-#         area = cur_cell_masks.sum(dim=(2, 3))
-#         # print(cur_cell_masks.shape)
-#
-#         summa = (cur_cams * (cur_cell_masks)).sum(dim=(2, 3))
-#
-#         # y_pred = self.sigm(summa)
-#
-#         y_pred = nn.Sigmoid()(torch.div(summa, area))
-#         y_pred = y_pred.cpu().numpy()
-#         # print(y_pred)
-#         # print(y_pred.shape)
-#         cur_cell_masks = cur_cell_masks.squeeze(1)
-#         for i in range(cur_sz):
-#             image_rles.append(encode_binary_mask(cur_cell_masks[i].cpu().numpy()).decode("utf-8"))
-#
-#         res = [y_pred, (image_rles)]
-#         return res
 
 
 
 class Inferrer:
-    def __init__(self, config, dl, df, trainset):
+    def __init__(self, config, dl, df, trainset, use_gpu):
         self.sigm__ = lambda x: 1 / (1 + math.exp(-x))
 
         self.config = config
@@ -130,77 +85,124 @@ class Inferrer:
         self.best_val_ap = None
 
         self.model = Classifier(config['model'])
-        self.model.cuda()
-        self.model.eval()
+
         self.nuc_load = lambda image_id: os.path.join(self.cache_path, 'nuc', image_id)
         self.cell_load = lambda image_id: os.path.join(self.cache_path, 'cell', image_id)
 
-
-
-        use_gpu = '0'
-
-        the_number_of_gpu = len(use_gpu.split(','))
-        if the_number_of_gpu > 1:
-           self. model = nn.DataParallel(self.model)
-
-        load_model(self.model, self.model_path, parallel=the_number_of_gpu > 1)
-
+        # use_gpu = '0'
+        # use_gpu = True
+        device_str = 'cuda' if use_gpu else 'cpu'
+        self.dev = torch.device(device_str)
+        if use_gpu:
+            self.model.cuda()
+        self.model.eval()
+        st_dt = torch.load(self.model_path, map_location=torch.device(device_str))['model']
+        self.model.load_state_dict(st_dt)
         self.segmentator = cellsegmentator.CellSegmentator(
             config['segm_model']['nuclei_path'],
             config['segm_model']['cell_path'],
-            scale_factor=0.25,
-            device='cuda',
-            padding=True,
+            device=device_str,
             multi_channel_model=True
         )
 
-    def save_predictions(self, save_cams=True, save_masks=False, viz=False, infer=False):
-        # max_logits = [0 for i in range(self.config['model']['classes'])]
-
-        # dir_path = '/common/danylokolinko/hpa'
-        # train = False
-        # img_dir = os.path.join(dir_path, ('train' if train else 'test'))
-
-        # glob_preds = []
+    def save_predictions(self, save_cams=True, save_masks=False, viz=False, infer=False, retmasks=False):
+        image_rles = []
+        tot_inf = []
+        masklst = []
         with torch.no_grad():
-            for step, (image, empty_label, image_id, empty_cell, empty_nuclei) in (enumerate(tqdm(self.dl))):
+            for step, (image, unnorm_image, image_id) in (enumerate(tqdm(self.dl))):
+                # print(unnorm_image.shape)
+                if not os.path.exists(self.pth):
+                    os.makedirs(self.pth)
+
                 with torch.cuda.amp.autocast(enabled=self.use_amp):
-                    image = image.cuda()
-                    CAMs, preds = get_cam(self.model, image, 1)
+                    # unnorm_image = unnorm_image.to(self.dev)
+                    image = image.to(self.dev)
+
+                    # preds1, CAMs1, masks1 = get_cam(self.model, image, ttaflag=True, scale=1)
+
+                    preds, CAMs, masks = get_cam(self.model, image, ttaflag=True, scale=1)
+                    preds1, CAMs1, masks1 = get_cam(self.model, image, ttaflag=False, scale=1)
+                    masks = masks.cpu().type(torch.FloatTensor)
+                    masks1 = masks1.cpu().type(torch.FloatTensor)
+
+
+
+                    # if retmasks:
+                    #     masklst.append(masks)
+
+
+                    # preds1, CAMs1, masks1 = get_cam(self.model, image, 1, flag=True)#TODO: few scales. flips. other tta; use mask
+                    # CAMs1 = CAMs1.cpu()
+
                     CAMs = CAMs.cpu()
+                    print(CAMs.size())
+                    print(masks.shape)
+                    # return preds, CAMs, masks, unnorm_image
+
+                    # unnorm_image /= 255
+
+                    # unnorm_image = unnorm_image.cpu()
+
+                    cells = []
+
+                    rgb_batch = [unnorm_image[..., [0, 3, 2]][i].numpy().astype(float) / 255 for i in
+                          range(unnorm_image.size(0))]
+                    blue_batch = [unnorm_image[..., 2][i].numpy().astype(float) / 255 for i in range(unnorm_image.size(0))]
+                    nuc_segmentations = self.segmentator.pred_nuclei(blue_batch)
+                    cell_segmentations = self.segmentator.pred_cells(rgb_batch, precombined=True)
+                    for nuc_seg, cell_seg in zip(nuc_segmentations, cell_segmentations):
+                        _, cell = label_cell(nuc_seg, cell_seg)
+                        cells.append(cell)
 
                     if infer:
-                        pass
-                    if not os.path.exists(self.pth):
-                        os.makedirs(self.pth)
+                        resized_cells = []
+
+                        for i in range(len(image_id)):
+                            cur_cell = cells[i]
+                            og_size = self.df[self.df.ID == image_id[i]]
+                            og_wh = (og_size.ImageWidth.values[0], og_size.ImageHeight.values[0])
+                            resized = res_dict[og_wh[0]](image=np.random.randn(*og_wh), mask=cur_cell)['mask']
+                            resized_cells.append(resized)
+                        for i in range(len(image_id)):
+
+
+                            # loaded = np.load(os.path.join(b, lds))['arr_0']
+                            uniqs = np.unique(resized_cells[i]).tolist()
+                            cur_rles = []
+                            assert uniqs[0] == 0
+                            for u in uniqs[1:]:
+                                cur_rles.append(encode_binary_mask((resized_cells[i] == u)).decode("utf-8"))
+                            image_rles.append(cur_rles)
+
+                        for i in range(len(image_id)):
+                            tot_inf.append(self.cust1(cells[i], CAMs[i]))
+                    # for j in range(len(image_id)):
+                    #     np.save(f'/common/danylokolinko/hpa_mask_semantic/nuc/{image_id[j]}', cv2.resize(nuc_segmentations[j], (1024, 1024)))
+
+
                     if save_cams:
                         for j in range(len(image_id)):
                             torch.save(CAMs[j], os.path.join(self.pth, f'{image_id[j]}.npy'))
+
                     if save_masks:
-                        images = build_image_names(image_id, self.img_dir)[-1]
-                        nuc_segmentations = self.segmentator.pred_nuclei(images[2])
-                        cell_segmentations = self.segmentator.pred_cells(images)
                         for j in range(len(image_id)):
-                            nuc_seg, cell_seg = label_cell(nuc_segmentations[j], cell_segmentations[j])
-                            np.save(self.nuc_load(image_id[j]), nuc_seg)
-                            np.save(self.cell_load(image_id[j]), cell_seg)
+                            np.save(self.cell_load(image_id[j]), cells[j])
                     if viz:
                         hrcams = nn.Sigmoid()(resize_for_tensors(CAMs.type(torch.FloatTensor), (512, 512)))
-                        # print(torch.mean(hrcams, dim=(2, 3)).max())
-                    # print(hrcams.shape)
+                        hrcams1 = nn.Sigmoid()(resize_for_tensors(CAMs1.type(torch.FloatTensor), (512, 512)))
+
+
                         for i, id in enumerate(image_id):
-                            print_masked_img(self.config[self.train_str]['path'], self.train_str, id, hrcams[i])
 
+                            print_masked_img(self.config[self.train_str]['path'], self.train_str, id, hrcams[i], cell_mask=cells[i], cell_pred=nn.Sigmoid()(masks[i]))
+                            print_masked_img(self.config[self.train_str]['path'], self.train_str, id, hrcams1[i],  cell_mask=cells[i], cell_pred=nn.Sigmoid()(masks1[i]))
+                    if retmasks:
+                        return masklst
 
+        if infer:
+            return [tot_inf, image_rles]
 
-
-
-                # params_lst = [(nuc_segmentations[i], cell_segmentations[i], CAMs[i]) for i in
-                #               range(len(cell_segmentations))]
-                # with Pool(16) as executor:
-                #     results = executor.map(cust, params_lst)
-                #
-                # glob_preds += list(results)
 
     def from_preds2string(self, preds):
         image_preds = preds[0]
@@ -210,45 +212,64 @@ class Inferrer:
              class_idx in range(self.num_classes)])
         return strt
 
-    # def from_preds2string(preds):
-    #     image_preds = preds[0]
-    #     image_rles = preds[1]
-    #     strt = " ".join(
-    #         [f'{class_idx} {sigm(image_preds[step][class_idx])} {rle}' for step, rle in enumerate(image_rles) for
-    #          class_idx in range(19)])
-    #     return strt
-
-
     def infer(self, masktype):
         with torch.no_grad():
-
             self.masktype=masktype
             ids = self.df.ID.tolist()
-
             with ThreadPoolExecutor(6) as executor:
                 results = list(tqdm(executor.map(self.cust, ids), total=len(ids)))
-            # with ThreadPoolExecutor(8) as executor:
-            # results = []
-            # for  i in (tqdm(range(len(ids)))):
-            #     results.append(self.cust(ids[i]))
-                # results = list(tqdm(executor.map(self.cust, ids), total=len(ids)))
-            # results = []
-            # for step, id in enumerate(tqdm(ids)):
-            #     res = self.cust(id)
-            #     results.append(res)
+            return results
 
-            glob_preds = (results)
-            # from_preds2stringpred = list(map(self.from_preds2string, glob_preds))
-            #
-            # df_submit = self.df.copy()
-            # df_submit['PredictionString'] = np.array(from_preds2stringpred)
+    # def cust(self, id):
+    #     nuclei_mask, cell_mask, CAMs = self.load_shit(id)
 
-            return glob_preds
+        # cur_cams = resize_for_tensors(CAMs.unsqueeze(0), nuclei_mask.shape)[0]
+        # frac = [i / 100 for i in range(0, 65, 5)]
 
-    def cust(self, id):
-        nuclei_mask, cell_mask, CAMs = self.load_shit(id)
-        cur_cams = resize_for_tensors(CAMs.unsqueeze(0), nuclei_mask.shape)[0]
-        frac = [i / 100 for i in range(5, 65, 5)]
+        # image_preds = [[] for j in frac]
+        # image_rles = []
+        # image_mean = cur_cams.squeeze(0).mean(dim=(1, 2))
+        # # hrcams = nn.Sigmoid()(torch.mean(cur_cams, dim=(1, 2)))
+        # # print(torch.mean(hrcams, dim=(1, 2)).max())
+
+#         # print(nn.Sigmoid()(cur_cams).mean(dim=(1, 2)))
+
+        # # 0 is background
+        # general_mask = cell_mask if self.masktype=='cell' else nuclei_mask
+        # for cell_idx in range(1, cell_mask.max() + 1):
+        #     image_rles.append(encode_binary_mask(cell_mask == cell_idx).decode("utf-8"))
+        #     current_cell_lst = []
+        #     for class_id in range(self.num_classes):
+        #         result = cur_cams[class_id] * (general_mask == cell_idx)
+        #         num_pixels = np.count_nonzero(result)
+        #         logits = result.sum().item() / num_pixels if num_pixels else 0
+        #         #                 prob = logits/thresh
+        #         # max_logits[class_id] = max(logits, max_logits[class_id])
+        #         current_cell_lst.append((logits))
+        #     # print(self.sigmoid(np.array(current_cell_lst)))
+        #     x = torch.FloatTensor(current_cell_lst)
+        #     # print(self.sigm(x).tolist())
+        #     # print(final)
+        #     for i, lst in enumerate(image_preds):
+        #         lst.append(self.sigm(frac[i]*image_mean + (1-frac[i])*x).numpy())
+
+        # res = [(image_preds), (image_rles)]
+        # return res
+
+    def load_shit(self, id):
+        nuc_segmentations = np.load(f'{self.nuc_load(id)}.npy')
+        cell_segmentations = np.load(f'{self.cell_load(id)}.npy')
+
+
+        CAMs = torch.load(os.path.join(self.pth, f'{id}.npy'))
+        # print(CAMs.device)
+        return nuc_segmentations, cell_segmentations, CAMs.type(torch.FloatTensor)
+
+    def cust1(self, cell_mask, CAMs):
+        # nuclei_mask, cell_mask, CAMs = self.load_shit(id)
+        CAMs = CAMs.type(torch.FloatTensor)
+        cur_cams = resize_for_tensors(CAMs.unsqueeze(0), cell_mask.shape)[0]
+        frac = [i / 100 for i in range(0, 65, 5)]
 
         image_preds = [[] for j in frac]
         image_rles = []
@@ -259,9 +280,14 @@ class Inferrer:
         # print(nn.Sigmoid()(cur_cams).mean(dim=(1, 2)))
 
         # 0 is background
-        general_mask = cell_mask if self.masktype=='cell' else nuclei_mask
+        general_mask = cell_mask
+        # cell_mask_resized = cv2.resize((cell_mask), og_wh)
+        cell_mask_resized = cell_mask
+
         for cell_idx in range(1, cell_mask.max() + 1):
-            image_rles.append(encode_binary_mask(cell_mask == cell_idx).decode("utf-8"))
+            # cell_mask_resized1 = cv2.resize((cell_mask_resized), og_wh)
+
+            # image_rles.append(encode_binary_mask((cell_mask_resized == cell_idx)).decode("utf-8"))
             current_cell_lst = []
             for class_id in range(self.num_classes):
                 result = cur_cams[class_id] * (general_mask == cell_idx)
@@ -275,80 +301,16 @@ class Inferrer:
             # print(self.sigm(x).tolist())
             # print(final)
             for i, lst in enumerate(image_preds):
-                lst.append(self.sigm(frac[i]*image_mean + (1-frac[i])*x).numpy())
+                lst.append(self.sigm(frac[i] * image_mean + (1 - frac[i]) * x).numpy())
 
-        res = [(image_preds), (image_rles)]
+        res = [(image_preds)]
         return res
-
-    # def cust(self, id):
-    #     # cur_cams = CAMS[i].unsqueeze(0)
-    #     # cur_cell_masks = cell_masks[i]
-    #
-    #
-    #
-    #     nuclei_mask, cell_mask, CAMs = self.load_shit(id)
-    #
-    #     cell_masks = torch.from_numpy(cell_mask.astype(np.int32))
-    #     nuclei_masks = torch.from_numpy(nuclei_mask.astype(np.int32))
-    #
-    #     uniqs, counts = torch.unique(cell_masks, return_counts=True)
-    #     uniqs = uniqs[1:]
-    #     non_z = counts[1:].unsqueeze(-1)
-    #     cur_sz = non_z.size(0)
-    #
-    #     image_rles = []
-    #     for uni in uniqs.tolist():
-    #         image_rles.append(encode_binary_mask(cell_mask == uni).decode('utf-8'))
-    #
-    #     CAMS = resize_for_tensors(CAMs.unsqueeze(0), cell_masks.shape)[0]
-    #     # cur_sz = cell_masks.amax(dim=(0, 1)).item()
-    #     cur_cams = CAMS.unsqueeze(0) #1, 19, h, w
-    #
-    #
-    #     general_mask = cell_masks if self.masktype=='cell' else nuclei_masks
-    #
-    #     cur_cell_masks = general_mask.unsqueeze(0).expand(cur_sz, -1, -1, -1)
-    #     cur_cell_masks = (cur_cell_masks == torch.arange(1, cur_sz+1).unsqueeze(-1).unsqueeze(-1).unsqueeze(-1))
-    #
-    #     # print(cur_cell_masks.device)
-    #
-    #     # area = cur_cell_masks.sum(dim=(2, 3))
-    #     # print(cur_cell_masks.shape)
-    #
-    #     summa = (cur_cams * (cur_cell_masks)).sum(dim=(2, 3))
-    #
-    #     # y_pred = self.sigm(summa)
-    #
-    #     y_pred = nn.Sigmoid()(torch.div(summa, non_z))
-    #     y_pred = y_pred.cpu().numpy()
-    #     # print(y_pred)
-    #     # print(y_pred.shape)
-    #
-    #
-    #     res = [y_pred, (image_rles)]
-    #     return res
-
-    def load_shit(self, id):
-        nuc_segmentations = np.load(f'{self.nuc_load(id)}.npy')
-        cell_segmentations = np.load(f'{self.cell_load(id)}.npy')
-
-
-        CAMs = torch.load(os.path.join(self.pth, f'{id}.npy')).type(torch.FloatTensor)
-        # print(CAMs.device)
-        return nuc_segmentations, cell_segmentations, CAMs
-#spiorfk
-
 
 
 if __name__ == '__main__':
     with open(os.path.join(os.path.dirname(__file__), 'config', 'cam_avenga.yaml')) as config_file:
         config = yaml.full_load(config_file)
 
-    # model = Classifier(config['model']['arch'], config['model']['pretreined'],
-    #                num_classes=config['model']['classes'], mode=config['args']['mode'])
-    # trainer = CAMTrainer(config, None, None)
-
-    # train_transform = get_transforms(config['train']['transform'])
     test_transform = get_transforms(config['test']['transform'])
 
     testdf = pd.read_csv(os.path.join(config['test']['path'], 'sample_submission.csv'))
@@ -359,18 +321,44 @@ if __name__ == '__main__':
                              shuffle=False,
                              drop_last=False)
 
-    # train_df = get_df_cam(path=config['train']['path'])
-    #
-    # train_dataset = HPADatasetCAM(config['train']['path'], train_df, transform=test_transform, yellow=True)
-    #
-    # train_loader = DataLoader(train_dataset, batch_size=config['batch_size'], num_workers=config['args']['num_workers'],
-    #                           shuffle=True,
-    #                           drop_last=True)
-
-
-
 
     inferrer = Inferrer(config, test_loader, testdf, False)
-    # inferrer.save_predictions(True, False, False, False)
-    preds = inferrer.infer(masktype='cell')
-    # df_submit.to_csv('~/hpa/submn.csv')
+    inferrer.save_predictions(infer=True)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# images = build_image_names(image_id, self.img_dir)[-1]
+# nuc_segmentations = self.segmentator.pred_nuclei(images[2])
+# cell_segmentations = self.segmentator.pred_cells(images)
+# for j in range(len(image_id)):
+#     nuc_seg, cell_seg = label_cell(nuc_segmentations[j], cell_segmentations[j])
+#     np.save(self.nuc_load(image_id[j]), nuc_seg)

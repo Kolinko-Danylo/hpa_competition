@@ -35,19 +35,46 @@ def read_img(root_path, train_or_test, image_id, color, image_size=None, b8=True
 def unnorm_features(model, features):
     return ((features - model.classifier[1].bias.view(1, -1, 1, 1)) / model.classifier[1].weight.view(1, -1, 1, 1))
 
-def get_cam(model, ori_image, scale=1):
-    image = copy.deepcopy(ori_image)
-    # flipped_image = image.flip(-1)
 
-    # images = torch.stack([image, flipped_image])
+def get_cam(model, ori_image, ttaflag, scale=1, with_masks=True):
+    image = copy.deepcopy(ori_image).cuda()
 
-    preds, features = model(image, with_cam=True)
-    # unn_features = ((features - model.classifier[1].bias.view(1, -1, 1, 1)) / model.classifier[1].weight.view(1, -1, 1, 1))
-    unn_features = None
-    # cams = F.relu(features)
-    # cams = cams[0] + cams[1].flip(-1)
+    if ttaflag:
+        tta_lst = [image,
+                   torch.flip(image, (-1,)),
+                   torch.flip(image, (-2,)),
+                   torch.flip(torch.flip(image, (-1,)), (-2,))]
 
-    return features, preds
+        preds_lst = []
+        feat_lst = []
+        mask_lst = []
+        for inp in (tta_lst):
+            preds, features, masks = model(inp, with_cam=True, no_decoder=not with_masks)
+            preds_lst.append(preds)
+            feat_lst.append(features)
+            mask_lst.append(masks)
+        lst = [feat_lst, mask_lst] if with_masks else [feat_lst]
+
+        for model_outs in lst:
+            model_outs[1] = torch.flip(model_outs[1], (-1,))
+            model_outs[2] = torch.flip(model_outs[2], (-2,))
+            model_outs[3] = torch.flip(torch.flip(model_outs[3], (-2,)), (-1,))
+
+        final_preds = 0
+        final_features = 0
+        final_masks = 0
+        for i in range(len(tta_lst)):
+            final_preds += preds_lst[i] / len(preds_lst)
+
+            final_features += feat_lst[i] / len(tta_lst)
+            if with_masks:
+                final_masks += mask_lst[i] / len(tta_lst)
+        if not with_masks:
+            final_masks = None
+        return final_preds, final_features, final_masks
+    else:
+        final_preds, final_features, final_masks = model(image, with_cam=True)
+        return final_preds, final_features, final_masks
 
 
 def build_image_names(image_id: tuple, dir_path: str) -> list:
@@ -121,20 +148,37 @@ def build_image_names(image_id: tuple, dir_path: str) -> list:
 
 
 # print utility from public notebook
-def print_masked_img(path, train_or_test, image_id, mask):
+def print_masked_img(path, train_or_test, image_id, mask, cell_mask=None, cell_pred=None):
+
     image_size=mask.size()[-1]
     img = load_RGBY_image(root_path=path, train_or_test=train_or_test, image_id=image_id, image_size=image_size)
     img = img[[0, 1, 2]].transpose([1, 2, 0])
+    x = (1 if cell_mask is not None else 0)
+    y = (4 if cell_pred is not None else 0)
+    num = 20 + x + y
+
     plt.figure(figsize=(30, 30))
-    plt.subplot(1, 20, 1)
+    plt.subplot(1, num, 1)
     plt.imshow(img)
     plt.axis('off')
 
+    if x:
+        plt.subplot(1, num, 2)
+        plt.imshow(cell_mask)
+        plt.axis('off')
+    if y:
+        for i in range(4):
+            plt.subplot(1, num, 3+i)
+            plt.imshow(cell_pred[i])
+            plt.axis('off')
+
     for i in range(19):
-        plt.subplot(1, 20, 2 + i)
+        plt.subplot(1, num, 2 + x + y + i)
         plt.imshow(img)
         plt.imshow(mask[i], alpha=0.6)
         plt.axis('off')
+
+
     plt.show()
 
 

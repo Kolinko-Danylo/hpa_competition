@@ -2,32 +2,39 @@
 project: hpa_challenge
 task: classification
 log_path: /home/danylokolinko/logs/cam/
-expchange: pretrain_on_public
+expchange: finetune_model_more
 
-pretrain: True
+pretrain: False
+
+selfsupervise: &SELFSUPERVISION False
 
 devices:
   - 'cuda'
 
 
-hpasegm_predictions: /common/danylokolinko/publichpa_mask_semantic
+hpasegm_predictions: /common/danylokolinko/hpa_mask_semantic
 
 use_amp: True
 train:
-  path: &TRAIN_PATH /common/danylokolinko/publichpa
+  path: &TRAIN_PATH /common/danylokolinko/hpa
   b8: &B8 False
+
+  additional_data_path: /common/danylokolinko/additional_data.csv
+#  additional_data_path: False
 
   transform:
     size: &SIZE 512
-    augmentation_scope: new
+    augmentation_scope: morebrit
     images_normalization: &IMAGES_NORMALIZATION default
     images_output_format_type: &IMAGES_OUTPUT_FORMAT_TYPE float16
     masks_normalization: &MASKS_NORMALIZATION none
     masks_output_format_type: &MASKS_FORMAT_TYPE int
     size_transform: resize
-    mask_dropout: False
+    mask_dropout: True
+    supervision: *SELFSUPERVISION
 
-  load_mask: &LOAD_MASK False
+
+  load_mask: &LOAD_MASK True
   mask_path: &MASK_PATH /common/danylokolinko/hpa_mask/
   cell_input: &CELL_INPUT False
   nuclei_input: &NUCLEI_INPUT False
@@ -45,6 +52,7 @@ val:
     masks_output_format_type: *MASKS_FORMAT_TYPE
     size_transform: resize
     mask_dropout: False
+    supervision: False
 
 
   load_mask: *LOAD_MASK
@@ -61,25 +69,30 @@ test:
     size: *SIZE
     augmentation_scope: none
     images_normalization: *IMAGES_NORMALIZATION
-    images_output_format_type: *IMAGES_OUTPUT_FORMAT_TYPE
+    images_output_format_type: float
+#    images_output_format_type: *IMAGES_OUTPUT_FORMAT_TYPE
     masks_normalization: *MASKS_NORMALIZATION
     masks_output_format_type: *MASKS_FORMAT_TYPE
     size_transform: resize
     mask_dropout: False
+    supervision: False
+
+    unnorm: True
+    tta: False
 
 
 model:
-  segmentation: True
+  segmentation: False
   arch: timm-efficientnet-b4
   pretrained: True
-  stride2dilation: False
+  stride2dilation: True
 
   classifier_param: null
 
   encoder_depth: 34
   mode: normal
   classes: 19
-  segm_classes: 2
+  segm_classes: 4
   cell_input: *CELL_INPUT
   nuclei_input: *NUCLEI_INPUT
   in_channels:
@@ -89,29 +102,37 @@ model:
     - yellow
 
   loss:
-#    - name: mean_dice
-#      weight: 0.25
     name: focal_w_logits
-    div: 10
+    div: 12
     gamma: 1
 
-#        class_weights: [0.00898384, 0.37205847, 0.16033528, 0.46362242]
 
   metrics:
     - AP
-  load_weights: False
-  model_path: /home/danylokolinko/logs/cam/models/timm-efficientnet-b4-2021-05-04-12-55-27_channel_dropout_cell_level.pth
+  load_weights: True
+
+#  model_path: /home/danylokolinko/logs/cam/models/timm-efficientnet-b4-2021-05-10-09-15-58_finetune_model_more.pth
+#  model_path: /home/danylokolinko/logs/cam/models/timm-efficientnet-b4-2021-05-09-21-57-52_finetune_model_more.pth
+#  model_path: /home/danylokolinko/logs/cam/models/timm-efficientnet-b4-2021-05-10-15-46-30_finetune_model_more.pth
+#  model_path: /home/danylokolinko/logs/cam/models/timm-efficientnet-b4-2021-05-10-19-24-11_finetune_model_more.pth
+#  model_path: /home/danylokolinko/logs/cam/models/timm-efficientnet-b4-2021-05-11-06-34-40_finetune_model_more.pth
+  model_path: /home/danylokolinko/logs/cam/models/timm-efficientnet-b4-2021-05-11-15-45-06_finetune_model_more.pth
+
 
 segm_model:
   nuclei_path: '/home/danylokolinko/segm_models/dpn_unet_nuclei_v1.pth'
   cell_path: '/home/danylokolinko/segm_models/dpn_unet_cell_3ch_v1.pth'
 
 pred_dir: /common/danylokolinko/hpa_pred/cam
-num_epochs: 30
-batch_size: 10
+num_epochs: 10
+batch_size: 13
 optimizer:
   name: adam
-  lr: 0.001
+  lr:
+    - 0.0002 #encoder classifier
+    - 0.0003 #classifier
+    - 0.001 #decoder
+    - 0.001 #segmentation_head
   weight_decay: 0.000001
 
 scheduler:
@@ -123,8 +144,6 @@ monitor:
   method: epochs
   interval: 1000
 
-experiment_name: resnet50-2021-03-23-13-05-50
-
 
 args:
   seed: 0
@@ -135,11 +154,12 @@ args:
   image_size: 224
   print_ratio: 0.1
   num_pieces: 4
-  loss_option: cl_pcl_re
+  loss_option: cl_pcl_re_lovasz
   level: feature
   re_loss: L2_Loss
   alpha: 1
-  alpha_schedule: 0.5
+  alpha_schedule: 0.8
   re_loss_option: masking
+  iters2acc: 1
 
 

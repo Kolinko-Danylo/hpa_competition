@@ -46,15 +46,19 @@ if __name__ == '__main__':
     if config['model']['load_weights']:
         tag_str = config['model']['model_path'].split('/')[-1].split('.')[0]
         # if tag_str.endswith('cell_level'):
-        csvtag_str = tag_str.strip('_cell_level')
+        csvtag_str = tag_str.replace('_cell_level', '')
+        csvtag_str = tag_str.replace('_last', '')
+
         print(tag_str)
         print(f'loading csv from {tag_str}')
+
         filec = os.path.join(config['log_path'], 'csv', csvtag_str)
         if config['pretrain'] or (not os.path.isfile(filec) and os.path.isfile(os.path.join(config['log_path'], 'csv', csvtag_str+'_pretraining'))):
             print('not_loading')
             df = get_df_cam(path=config['train']['path'])
         else:
             df = pd.read_csv(filec)
+            # df['is_valid'] = df.fold == 3
             print(df.head())
     else:
         print('not_loading')
@@ -70,6 +74,7 @@ if __name__ == '__main__':
                               drop_last=True)
     val_loader = DataLoader(val_dataset, batch_size=config['batch_size'], num_workers=config['args']['num_workers'], shuffle=True,
                               drop_last=True)
+    # print(train_dataset[17455])
 
     trainer = CAMTrainer(config, train_loader, val_loader)
     sstr = trainer.tag_str + ('_pretraining' if config['pretrain'] else '')
